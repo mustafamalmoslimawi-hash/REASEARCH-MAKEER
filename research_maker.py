@@ -2,6 +2,14 @@ import streamlit as st
 import requests
 import docx
 from io import BytesIO
+import os
+from dotenv import load_model, load_dotenv
+
+# جلب المفاتيح تلقائياً من ملف .env
+load_dotenv()
+
+SERPAPI_KEY = os.getenv("SERPAPI_KEY")
+GEMINI_KEY = os.getenv("GEMINI_KEY")
 
 # إعدادات واجهة المستخدم الرسومية للموقع
 st.set_page_config(page_title="RESEARCH-MAKER", layout="wide")
@@ -10,13 +18,9 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>النظام الأكاديمي الذكي للبحث التلقائي وصياغة البحوث بـ Gemini المجاني</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# 🔑 ضع مفاتيحك الخاصة هنا بين علامات التنصيص
-SERPAPI_KEY = "3333539fe58445aebe1e4c9ae5d105d12e12160121f8beb93d8ff6bbd657c515"
-GEMINI_KEY = "AQ.Ab8RN6K2P_mXtgZ34-iJR8z3TARBk6mAcvwe51IIz9280y9DlA"
-
 def fetch_google_scholar(query):
     """جلب الأبحاث والمراجع من جوجل سكالر"""
-    if not SERPAPI_KEY or "ضع_مفتاح" in SERPAPI_KEY: return []
+    if not SERPAPI_KEY: return []
     url = "https://serpapi.com/search"
     params = {"engine": "google_scholar", "q": query, "hl": "en", "api_key": SERPAPI_KEY}
     try:
@@ -30,8 +34,8 @@ def fetch_google_scholar(query):
 
 def generate_research_with_gemini(title, context_papers, lang, style):
     """صياغة البحث باستخدام Google Gemini API بناءً على نتائج مراجع جوجل"""
-    if not GEMINI_KEY or "ضع_مفتاح" in GEMINI_KEY:
-        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح."
+    if not GEMINI_KEY:
+        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في ملف البيئة."
         
     papers_text = ""
     for idx, p in enumerate(context_papers):
@@ -52,7 +56,6 @@ def generate_research_with_gemini(title, context_papers, lang, style):
     3. Include a formal 'References' section matching {style} style.
     """
     
-    # رابط استدعاء نموذج Gemini 1.5 Flash السريع والمجاني لإنتاج النصوص
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/vnd.google.protobuf"}
     payload = {
@@ -95,10 +98,10 @@ with col2:
 
 if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"):
     if research_title:
-        if "ضع_مفتاح" in SERPAPI_KEY or "ضع_مفتاح" in GEMINI_KEY:
-            st.error("🛑 يرجى تزويد الكود بمفاتيحك (SerpApi و Gemini) لكي يعمل النظام.")
+        if not SERPAPI_KEY or not GEMINI_KEY:
+            st.error("🛑 يرجى التحقق من وجود مفاتيح (SerpApi و Gemini) داخل ملف الـ .env بشكل صحيح.")
         else:
-            with st.spinner("🔄 jari فحص Google Scholar وسحب المراجع العلمية الموثقة..."):
+            with st.spinner("🔄 جاري فحص Google Scholar وسحب المراجع العلمية الموثقة..."):
                 all_papers = fetch_google_scholar(research_title)
                 
             if all_papers:
@@ -118,6 +121,6 @@ if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
             else:
-                st.warning("تعذر العثور على أبحاث، حاول تغيير الكلمات المفتاحية.")
+                st.warning("تعذر العثور على أبحاث، حاول تغيير الكلمات المفتاحية للعنوان.")
     else:
         st.error("الرجاء كتابة عنوان البحث أولاً.")
