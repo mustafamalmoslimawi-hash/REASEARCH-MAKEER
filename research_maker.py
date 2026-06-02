@@ -1,80 +1,114 @@
 import streamlit as st
 import requests
+from openai import OpenAI
+import docx
+from io import BytesIO
 
-# إعدادات الصفحة الأساسية للموقع لتكون متناسقة واحترافية
+# إعدادات واجهة المستخدم الرسومية للموقع
 st.set_page_config(page_title="RESEARCH-MAKER", layout="wide")
 
-# التصميم العلوي للموقع (العنوان والترحيب)
 st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>النظام الذكي للبحث الأكاديمي وصياغة الأبحاث تلقائياً</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>النظام الأكاديمي الذكي للبحث التلقائي وصياغة البحوث الجاهزة</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# ضع مفتاح SerpApi الذي نسخته هنا بين القوسين لتشغيل السيرفر مؤقتاً 
-# (أو يفضل مستقبلاً قراءته من ملف .env)
-SERPAPI_KEY = "3333539fe58445aebe1e4c9ae5d105d12e12160121f8beb93d8ff6bbd657c515"
+# 🔑 ضع مفاتيحك هنا (مفتاح SerpApi ومفتاح OpenAI فقط)
+SERPAPI_KEY = "ضع_مفتاح_serpapi_هنا"
+OPENAI_KEY = "ضع_مفتاح_openai_هنا"
 
-def fetch_google_scholar_papers(query):
-    """دالة للاتصال بجوجل سكالر وسحب أهم الأبحاث والمراجع"""
-    if not SERPAPI_KEY or "اكتب_مفتاح" in SERPAPI_KEY:
-        st.error("⚠️ الرجاء إضافة مفتاح الـ API الخاص بـ SerpApi داخل الكود أولاً لتفعيل البحث.")
-        return []
-        
+# تفعيل اتصال OpenAI
+client = OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY and "ضع_مفتاح" not in OPENAI_KEY else None
+
+def fetch_google_scholar(query):
+    """جلب الأبحاث والمراجع من جوجل سكالر"""
+    if not SERPAPI_KEY or "ضع_مفتاح" in SERPAPI_KEY: return []
     url = "https://serpapi.com/search"
-    params = {
-        "engine": "google_scholar",
-        "q": query,
-        "hl": "en",
-        "api_key": SERPAPI_KEY
-    }
-    
+    params = {"engine": "google_scholar", "q": query, "hl": "en", "api_key": SERPAPI_KEY}
     try:
         response = requests.get(url, params=params)
-        results = response.json()
-        
-        # تجميع الأبحاث المستخرجة وترتيبها
-        articles = []
-        for item in results.get("organic_results", [])[:5]:  # جلب أهم 5 أبحاث فقط للسرعة
-            articles.append({
-                "title": item.get("title", "No Title"),
-                "link": item.get("link", "#"),
-                "snippet": item.get("snippet", "No abstract available."),
-                "citations": item.get("inline_links", {}).get("cited_by", {}).get("total", 0)
-            })
-        return articles
-    except Exception as e:
-        st.error(f"حدث خطأ أثناء الاتصال بالخادم: {e}")
-        return []
+        return [{
+            "title": item.get("title", "No Title"),
+            "snippet": item.get("snippet", "No abstract available."),
+            "link": item.get("link", "#")
+        } for item in response.json().get("organic_results", [])[:5]] # جلب أفضل 5 أبحاث
+    except: return []
 
-# بناء عناصر واجهة المستخدم المدخلة
-research_title = st.text_input("📝 أدخل الكلمات المفتاحية أو عنوان البحث العلمي المطلوب:")
+def generate_research_with_ai(title, context_papers, lang, style):
+    """صياغة البحث بالذكاء الاصطناعي بناءً على نتائج مراجع جوجل"""
+    if not client: return "خطأ: لم يتم إضافة مفتاح OpenAI API بشكل صحيح."
+        
+    papers_text = ""
+    for idx, p in enumerate(context_papers):
+        papers_text += f"\n[Paper {idx+1}] Title: {p['title']}\nSummary: {p['snippet']}\n"
+        
+    prompt = f"""
+    You are an expert academic researcher. Write a professional scientific research paper based on the following topic and background papers.
+    Topic: {title}
+    Target Language: {lang}
+    Citation Style: {style}
+    
+    Literature Background:
+    {papers_text}
+    
+    Requirements:
+    1. Write an 'Introduction' section with in-text citations like [1], [2].
+    2. Write a 'Results and Discussion' section.
+    3. Include a formal 'References' section matching {style} style.
+    """
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[{"role": "user", "content": prompt}]
+        )
+        return response.choices[0].message.content
+    except Exception as e:
+        return f"حدث خطأ أثناء الصياغة بالذكاء الاصطناعي: {e}"
+
+def create_word_document(text, title):
+    """تحويل النص إلى ملف Word"""
+    doc = docx.Document()
+    doc.add_heading(title, level=0)
+    lines = text.split("\n")
+    for line in lines:
+        if line.strip().startswith("1.") or line.strip().startswith("Introduction") or line.strip().startswith("Results") or line.strip().startswith("References"):
+            doc.add_heading(line, level=1)
+        elif line.strip(): doc.add_paragraph(line)
+    bio = BytesIO()
+    doc.save(bio)
+    bio.seek(0)
+    return bio
+
+# الواجهة
+research_title = st.text_input("📝 أدخل عنوان البحث العلمي المطلوب صياغته:")
 
 col1, col2 = st.columns(2)
 with col1:
-    language = st.selectbox("🌐 لغة الصياغة المطلوبة:", ["English", "العربية"])
+    language = st.selectbox("🌐 لغة الصياغة الأكاديمية:", ["English", "العربية"])
 with col2:
-    citation_style = st.selectbox("📚 نظام توثيق المراجع:", ["APA", "IEEE", "Harvard"])
+    citation_style = st.selectbox("📚 نظام توثيق المراجع الدولي:", ["APA", "IEEE", "Harvard"])
 
-# زر بدء عمليات البحث التلقائي
-if st.button("🚀 ابدأ البحث الأكاديمي والتوليد"):
+if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"):
     if research_title:
-        with st.spinner("🔄 جاري الاتصال بقاعدة بيانات Google Scholar وسحب الأوراق العلمية والمراجع..."):
-            papers = fetch_google_scholar_papers(research_title)
-            
-            if papers:
-                st.success(f"✅ تم العثور على {len(papers)} أبحاث أكاديمية موثقة ومطابقة لعناوينك!")
-                st.write("---")
+        if "ضع_مفتاح" in SERPAPI_KEY or "ضع_مفتاح" in OPENAI_KEY:
+            st.error("🛑 يرجى تزويد الكود بمفاتيح (SerpApi و OpenAI) لكي يعمل النظام.")
+        else:
+            with st.spinner("🔄 جاري فحص Google Scholar وسحب المراجع العلمية..."):
+                all_papers = fetch_google_scholar(research_title)
                 
-                # عرض نتائج البحث للمستخدم في الواجهة
-                st.subheader("📋 الأوراق العلمية والمراجع المعتمدة المستخرجة:")
-                for index, paper in enumerate(papers):
-                    with st.expander(f"📄 مرجع [{index+1}]: {paper['title']}"):
-                        st.markdown(f"**الملخص المستخلص (Snippet):** {paper['snippet']}")
-                        st.markdown(f"**عدد الاقتباسات العالمي (Citations):** {paper['citations']}")
-                        st.markdown(f"[🔗 رابط الورقة العلمية الأصلية]({paper['link']})")
+            if all_papers:
+                st.success(f"✅ تم جمع {len(all_papers)} مراجع علمية موثقة! جاري الصياغة الآن...")
+                with st.spinner("🧠 يقوم العقل الاصطناعي بكتابة الأقسام وتنسيق المراجع..."):
+                    generated_text = generate_research_with_ai(research_title, all_papers, language, citation_style)
+                    
+                st.balloons()
+                st.subheader("📄 معاينة البحث العلمي المولد:")
+                st.text_area("نص البحث الكامل", generated_text, height=400)
                 
-                st.write("---")
-                st.info("💡 الخطوة القادمة: سيتم إرسال هذه البيانات المستخرجة إلى نموذج الذكاء الاصطناعي (العقل المفكر) لبناء المقدمة، التحليل، والمراجع تلقائياً لتنزيلها كملف جاهز.")
+                word_file = create_word_document(generated_text, research_title)
+                st.download_button(
+                    label="📥 تحميل البحث العلمي الجاهز بصيغة ملف Word (.docx)",
+                    data=word_file,
+                    file_name=f"{research_title.replace(' ', '_')}_Research.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                )
             else:
-                st.warning("لم يتم العثور على نتائج، يرجى التحقق من المفتاح أو العنوان وحاول مجدداً.")
-    else:
-        st.error("الرجاء كتابة اسم أو عنوان البحث أولاً قبل الضغط على الزر.")
+                st.warning("تعذر العثور على أبحاث، حاول تغيير الكلمات المفتاحية.")
