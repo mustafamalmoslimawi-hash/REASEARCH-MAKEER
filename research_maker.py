@@ -5,11 +5,12 @@ from io import BytesIO
 import os
 from dotenv import load_dotenv
 
-# تفعيل جلب المفاتيح من ملف .env بشكل صحيح
+# تفعيل جلب المفاتيح من ملف .env
 load_dotenv()
 
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
-GEMINI_KEY = os.getenv("GEMINI_KEY")
+# جلب المفاتيح وتنظيفها من أي علامات تنصيص زائدة قد تكون بالملف
+SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip().replace('"', '').replace("'", "")
+GEMINI_KEY = os.getenv("GEMINI_KEY", "").strip().replace('"', '').replace("'", "")
 
 # إعدادات واجهة المستخدم الرسومية للموقع
 st.set_page_config(page_title="RESEARCH-MAKER", layout="wide")
@@ -57,7 +58,7 @@ def generate_research_with_gemini(title, context_papers, lang, style):
     """
     
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    headers = {"Content-Type": "application/vnd.google.protobuf"}
+    headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{
             "parts": [{"text": prompt}]
@@ -67,9 +68,16 @@ def generate_research_with_gemini(title, context_papers, lang, style):
     try:
         response = requests.post(url, json=payload, headers=headers)
         result = response.json()
-        return result['candidates'][0]['content']['parts'][0]['text']
+        
+        # التأكد من نجاح الاستجابة واحتوائها على النص
+        if 'candidates' in result and len(result['candidates']) > 0:
+            return result['candidates'][0]['content']['parts'][0]['text']
+        elif 'error' in result:
+            return f"خطأ من سيرفر جوجل (API Error): {result['error'].get('message', 'تفاصيل غير معروفة')}"
+        else:
+            return f"استجابة غير متوقعة من السيرفر، يرجى التأكد من صلاحية المفتاح. تفاصيل: {result}"
     except Exception as e:
-        return f"حدث خطأ أثناء الصياغة بذكاء Gemini: {e}"
+        return f"حدث خطأ أثناء الاتصال بذكاء Gemini: {e}"
 
 def create_word_document(text, title):
     """تحويل النص المولد إلى ملف Word قابل للتعديل"""
@@ -109,17 +117,19 @@ if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"
                 with st.spinner("🧠 يقوم عقل Gemini الاصطناعي بكتابة الأقسام وتنسيق الهوامش..."):
                     generated_text = generate_research_with_gemini(research_title, all_papers, language, citation_style)
                     
-                st.balloons()
                 st.subheader("📄 معاينة البحث العلمي المولد:")
                 st.text_area("نص البحث الكامل", generated_text, height=400)
                 
-                word_file = create_word_document(generated_text, research_title)
-                st.download_button(
-                    label="📥 تحميل البحث العلمي الجاهز بصيغة ملف Word (.docx)",
-                    data=word_file,
-                    file_name=f"{research_title.replace(' ', '_')}_Research.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
+                # إظهار زر التحميل فقط في حال تم التوليد بنجاح ولم يرجع كود خطأ
+                if "خطأ" not in generated_text and "Error" not in generated_text:
+                    st.balloons()
+                    word_file = create_word_document(generated_text, research_title)
+                    st.download_button(
+                        label="📥 تحميل البحث العلمي الجاهز بصيغة ملف Word (.docx)",
+                        data=word_file,
+                        file_name=f"{research_title.replace(' ', '_')}_Research.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
             else:
                 st.warning("تعذر العثور على أبحاث، حاول تغيير الكلمات المفتاحية للعنوان.")
     else:
