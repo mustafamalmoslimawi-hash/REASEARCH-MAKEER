@@ -12,7 +12,7 @@ st.write("---")
 
 # 🔑 ضع مفاتيحك الخاصة هنا بين علامات التنصيص
 SERPAPI_KEY = "3333539fe58445aebe1e4c9ae5d105d12e12160121f8beb93d8ff6bbd657c515"
-GEMINI_KEY = "ضع_مفتاح_gemini_الذي_ستنسخه_الآن_هنا"
+GEMINI_KEY = "AQ.Ab8RN6K2P_mXtgZ34-iJR8z3TARBk6mAcvwe51IIz9280y9DlA"
 
 def fetch_google_scholar(query):
     """جلب الأبحاث والمراجع من جوجل سكالر"""
