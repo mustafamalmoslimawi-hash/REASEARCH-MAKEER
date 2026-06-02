@@ -3,9 +3,9 @@ import requests
 import docx
 from io import BytesIO
 import os
-from dotenv import load_model, load_dotenv
+from dotenv import load_dotenv
 
-# جلب المفاتيح تلقائياً من ملف .env
+# تفعيل جلب المفاتيح من ملف .env بشكل صحيح
 load_dotenv()
 
 SERPAPI_KEY = os.getenv("SERPAPI_KEY")
@@ -29,11 +29,11 @@ def fetch_google_scholar(query):
             "title": item.get("title", "No Title"),
             "snippet": item.get("snippet", "No abstract available."),
             "link": item.get("link", "#")
-        } for item in response.json().get("organic_results", [])[:5]] # جلب أفضل 5 أبحاث
+        } for item in response.json().get("organic_results", [])[:5]]
     except: return []
 
 def generate_research_with_gemini(title, context_papers, lang, style):
-    """صياغة البحث باستخدام Google Gemini API بناءً على نتائج مراجع جوجل"""
+    """صياغة البحث باستخدام Google Gemini API بناءً على مراجع جوجل"""
     if not GEMINI_KEY:
         return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في ملف البيئة."
         
@@ -51,7 +51,7 @@ def generate_research_with_gemini(title, context_papers, lang, style):
     {papers_text}
     
     Requirements:
-    1. Write a comprehensive 'Introduction' section with in-text citations like [1], [2] to cite the background papers.
+    1. Write a comprehensive 'Introduction' section with in-text citations like [1], [2].
     2. Write a detailed 'Results and Discussion' section.
     3. Include a formal 'References' section matching {style} style.
     """
@@ -72,7 +72,7 @@ def generate_research_with_gemini(title, context_papers, lang, style):
         return f"حدث خطأ أثناء الصياغة بذكاء Gemini: {e}"
 
 def create_word_document(text, title):
-    """تحويل النص المولد إلى ملف Word قابل للتعديل والطباعة"""
+    """تحويل النص المولد إلى ملف Word قابل للتعديل"""
     doc = docx.Document()
     doc.add_heading(title, level=0)
     lines = text.split("\n")
@@ -87,7 +87,7 @@ def create_word_document(text, title):
     bio.seek(0)
     return bio
 
-# بناء الواجهة
+# بناء واجهة المستخدم
 research_title = st.text_input("📝 أدخل عنوان البحث العلمي المطلوب صياغته:")
 
 col1, col2 = st.columns(2)
@@ -105,8 +105,8 @@ if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"
                 all_papers = fetch_google_scholar(research_title)
                 
             if all_papers:
-                st.success(f"✅ تم جمع {len(all_papers)} مراجع علمية بنجاح! جاري الصياغة الآن عبر سيرفرات Gemini...")
-                with st.spinner("🧠 يقوم عقل Gemini الاصطناعي بكتابة الأقسام وتنسيق الهوامش الأكاديمية..."):
+                st.success(f"✅ تم جمع {len(all_papers)} مراجع علمية بنجاح! جاري الصياغة الآن...")
+                with st.spinner("🧠 يقوم عقل Gemini الاصطناعي بكتابة الأقسام وتنسيق الهوامش..."):
                     generated_text = generate_research_with_gemini(research_title, all_papers, language, citation_style)
                     
                 st.balloons()
