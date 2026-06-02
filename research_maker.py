@@ -1,6 +1,5 @@
 import streamlit as st
 import requests
-from openai import OpenAI
 import docx
 from io import BytesIO
 
@@ -8,15 +7,12 @@ from io import BytesIO
 st.set_page_config(page_title="RESEARCH-MAKER", layout="wide")
 
 st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>النظام الأكاديمي الذكي للبحث التلقائي وصياغة البحوث الجاهزة</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>النظام الأكاديمي الذكي للبحث التلقائي وصياغة البحوث بـ Gemini المجاني</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# 🔑 ضع مفاتيحك هنا (مفتاح SerpApi ومفتاح OpenAI فقط)
-SERPAPI_KEY = "ضع_مفتاح_serpapi_هنا"
-OPENAI_KEY = "ضع_مفتاح_openai_هنا"
-
-# تفعيل اتصال OpenAI
-client = OpenAI(api_key=OPENAI_KEY) if OPENAI_KEY and "ضع_مفتاح" not in OPENAI_KEY else None
+# 🔑 ضع مفاتيحك الخاصة هنا بين علامات التنصيص
+SERPAPI_KEY = "ضع_مفتاح_serpapi_الخاص_بك_هنا"
+GEMINI_KEY = "ضع_مفتاح_gemini_الذي_ستنسخه_الآن_هنا"
 
 def fetch_google_scholar(query):
     """جلب الأبحاث والمراجع من جوجل سكالر"""
@@ -32,9 +28,10 @@ def fetch_google_scholar(query):
         } for item in response.json().get("organic_results", [])[:5]] # جلب أفضل 5 أبحاث
     except: return []
 
-def generate_research_with_ai(title, context_papers, lang, style):
-    """صياغة البحث بالذكاء الاصطناعي بناءً على نتائج مراجع جوجل"""
-    if not client: return "خطأ: لم يتم إضافة مفتاح OpenAI API بشكل صحيح."
+def generate_research_with_gemini(title, context_papers, lang, style):
+    """صياغة البحث باستخدام Google Gemini API بناءً على نتائج مراجع جوجل"""
+    if not GEMINI_KEY or "ضع_مفتاح" in GEMINI_KEY:
+        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح."
         
     papers_text = ""
     for idx, p in enumerate(context_papers):
@@ -50,34 +47,44 @@ def generate_research_with_ai(title, context_papers, lang, style):
     {papers_text}
     
     Requirements:
-    1. Write an 'Introduction' section with in-text citations like [1], [2].
-    2. Write a 'Results and Discussion' section.
+    1. Write a comprehensive 'Introduction' section with in-text citations like [1], [2] to cite the background papers.
+    2. Write a detailed 'Results and Discussion' section.
     3. Include a formal 'References' section matching {style} style.
     """
+    
+    # رابط استدعاء نموذج Gemini 1.5 Flash السريع والمجاني لإنتاج النصوص
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    headers = {"Content-Type": "application/vnd.google.protobuf"}
+    payload = {
+        "contents": [{
+            "parts": [{"text": prompt}]
+        }]
+    }
+    
     try:
-        response = client.chat.completions.create(
-            model="gpt-4o",
-            messages=[{"role": "user", "content": prompt}]
-        )
-        return response.choices[0].message.content
+        response = requests.post(url, json=payload, headers=headers)
+        result = response.json()
+        return result['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        return f"حدث خطأ أثناء الصياغة بالذكاء الاصطناعي: {e}"
+        return f"حدث خطأ أثناء الصياغة بذكاء Gemini: {e}"
 
 def create_word_document(text, title):
-    """تحويل النص إلى ملف Word"""
+    """تحويل النص المولد إلى ملف Word قابل للتعديل والطباعة"""
     doc = docx.Document()
     doc.add_heading(title, level=0)
     lines = text.split("\n")
     for line in lines:
-        if line.strip().startswith("1.") or line.strip().startswith("Introduction") or line.strip().startswith("Results") or line.strip().startswith("References"):
-            doc.add_heading(line, level=1)
-        elif line.strip(): doc.add_paragraph(line)
+        clean_line = line.replace("**", "").replace("###", "").replace("##", "").strip()
+        if line.strip().startswith("1.") or "Introduction" in line or "Results" in line or "References" in line:
+            doc.add_heading(clean_line, level=1)
+        elif line.strip(): 
+            doc.add_paragraph(clean_line)
     bio = BytesIO()
     doc.save(bio)
     bio.seek(0)
     return bio
 
-# الواجهة
+# بناء الواجهة
 research_title = st.text_input("📝 أدخل عنوان البحث العلمي المطلوب صياغته:")
 
 col1, col2 = st.columns(2)
@@ -88,16 +95,16 @@ with col2:
 
 if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"):
     if research_title:
-        if "ضع_مفتاح" in SERPAPI_KEY or "ضع_مفتاح" in OPENAI_KEY:
-            st.error("🛑 يرجى تزويد الكود بمفاتيح (SerpApi و OpenAI) لكي يعمل النظام.")
+        if "ضع_مفتاح" in SERPAPI_KEY or "ضع_مفتاح" in GEMINI_KEY:
+            st.error("🛑 يرجى تزويد الكود بمفاتيحك (SerpApi و Gemini) لكي يعمل النظام.")
         else:
-            with st.spinner("🔄 جاري فحص Google Scholar وسحب المراجع العلمية..."):
+            with st.spinner("🔄 jari فحص Google Scholar وسحب المراجع العلمية الموثقة..."):
                 all_papers = fetch_google_scholar(research_title)
                 
             if all_papers:
-                st.success(f"✅ تم جمع {len(all_papers)} مراجع علمية موثقة! جاري الصياغة الآن...")
-                with st.spinner("🧠 يقوم العقل الاصطناعي بكتابة الأقسام وتنسيق المراجع..."):
-                    generated_text = generate_research_with_ai(research_title, all_papers, language, citation_style)
+                st.success(f"✅ تم جمع {len(all_papers)} مراجع علمية بنجاح! جاري الصياغة الآن عبر سيرفرات Gemini...")
+                with st.spinner("🧠 يقوم عقل Gemini الاصطناعي بكتابة الأقسام وتنسيق الهوامش الأكاديمية..."):
+                    generated_text = generate_research_with_gemini(research_title, all_papers, language, citation_style)
                     
                 st.balloons()
                 st.subheader("📄 معاينة البحث العلمي المولد:")
@@ -112,3 +119,5 @@ if st.button("🚀 ابدأ البحث التلقائي وصياغة البحث"
                 )
             else:
                 st.warning("تعذر العثور على أبحاث، حاول تغيير الكلمات المفتاحية.")
+    else:
+        st.error("الرجاء كتابة عنوان البحث أولاً.")
