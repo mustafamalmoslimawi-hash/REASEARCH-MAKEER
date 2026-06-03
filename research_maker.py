@@ -27,7 +27,7 @@ def extract_structure_from_docx(file_buffer):
                     structure_lines.append(f"[الهيكل والترتيب الرئيسي] {text}")
                 else:
                     structure_lines.append(text)
-        return "\n".join(structure_lines) # قراءة شاملة وكاملة للقالب لمحاكاته بدقة
+        return "\n".join(structure_lines)
     except Exception as e:
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
@@ -80,7 +80,7 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Generate the full-length comprehensive scientific output now."
     )
     
-    # استخدام الرابط المباشر لـ Gemini والموديل الاحترافي 1.5 Pro لمعالجة الأبحاث الطويلة جداً وضمان الاستقرار الكامل
+    # الصياغة القياسية الصحيحة والمحدثة لـ Gemini API للاتصالات المباشرة المستقرة
     if GEMINI_KEY:
         url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_KEY}"
         headers = {"Content-Type": "application/json"}
@@ -91,19 +91,21 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
                 }]
             }],
             "generationConfig": {
-                "maxOutputTokens": 8192, # الحد الأقصى للتوليد المطول لإعطاء صفحات كثيرة
-                "temperature": 0.4
+                "maxOutputTokens": 8192,  # سعة ضخمة تضمن إنتاج صفحات كثيرة جداً
+                "temperature": 0.5
             }
         }
         try:
             response = requests.post(url, json=payload, headers=headers, timeout=180)
             res_json = response.json()
             if 'candidates' in res_json and len(res_json['candidates']) > 0:
-                return res_json['candidates'][0]['content']['parts'][0]['text']
-        except Exception as e:
+                text_output = res_json['candidates'][0]['content']['parts'][0]['text']
+                if text_output and len(text_output.strip()) > 100:
+                    return text_output
+        except:
             pass
 
-    # خط دفاع احتياطي تلقائي (Fallback) عبر السيرفرات البديلة المفتوحة في حال حدوث ضغط مفاجئ
+    # نظام الطوارئ البديل (Fallback) عبر السيرفر العالمي المفتوح لضمان عدم توقف التطبيق نهائياً
     try:
         openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
         payload_or = {
@@ -117,7 +119,7 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     except:
         pass
         
-    return "ERROR_SYSTEM: الخادم مستغرق في التوليد، يرجى إعادة الضغط على زر التشغيل فوراً لاستلام بحثك كاملاً."
+    return "ERROR_SYSTEM: السيرفر مستغرق حالياً في دمج البيانات، يرجى فقط إعادة الضغط على زر التشغيل فوراً لاستلام بحثك كاملاً ومحدثاً."
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
