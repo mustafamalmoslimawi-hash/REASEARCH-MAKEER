@@ -4,15 +4,16 @@ import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
 
-# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
+# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA V4
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
 
-st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER ULTRA V3</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: توليد مطول + محاكاة كاملة لقالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER ULTRA</h1>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: توليد مطول وعميق يحاكي كامل قالب الـ Word</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب مفتاح سبرب آبي إذا كان متاحاً
+# جلب مفاتيح الربط من السيكرتس بشكل آمن
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
+GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
 # ==================== قسم قراءة قالب الـ WORD بالكامل ====================
 def extract_structure_from_docx(file_buffer):
@@ -22,17 +23,16 @@ def extract_structure_from_docx(file_buffer):
         for para in doc.paragraphs:
             text = para.text.strip()
             if text:
-                if para.style.name.startswith('Heading') or text.isupper() or any(k in text.lower() for k in ['chapter', 'section', 'المبحث', 'الفصل', 'المقدمة', 'الخاتمة']):
-                    structure_lines.append(f"[الهيكل الرئيسي] {text}")
+                if para.style.name.startswith('Heading') or text.isupper() or any(k in text.lower() for k in ['chapter', 'section', 'المبحث', 'الفصل', 'المقدمة', 'الخاتمة', 'المطلب']):
+                    structure_lines.append(f"[الهيكل والترتيب الرئيسي] {text}")
                 else:
                     structure_lines.append(text)
-        # تم فتح القراءة لتشمل القالب كاملاً ومحاكاته بدقة
-        return "\n".join(structure_lines)
+        return "\n".join(structure_lines) # قراءة كاملة وشاملة للقالب لمحاكاته بدقة
     except Exception as e:
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
 
-# ==================== قسم الـ APIs لتجهيز المراجع ====================
+# ==================== قسم الـ APIs لتجهيز المراجع العلمية ====================
 def fetch_semantic_scholar(query):
     url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=4&fields=title,abstract,url"
     try:
@@ -64,53 +64,56 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:4]]
     except: return []
 
-# ==================== قسم التوليد المطول والأكاديمي الفائق ====================
+# ==================== محرك الإنتاج العملاق والمطول المستقر ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     sources_block = ""
     for idx, p in enumerate(combined_papers):
         sources_block += f"\n- Title: {p['title']}\n  Abstract: {p['snippet']}\n"
         
-    # صياغة توجيه صارم ومشدد للذكاء الاصطناعي ليكتب بغزارة ويلتزم بالقالب بالتفصيل
     prompt = (
-        f"You are an elite academic professor and Senior Research Writer. Write an extremely comprehensive, "
-        f"highly detailed, and exhaustive academic research paper about '{title}' in language: {lang} using {style} citation style.\n\n"
-        f"CRITICAL REQUIREMENT:\n"
-        f"1. You MUST follow every single section, heading, and layout detailed in this user template:\n{template_text}\n\n"
-        f"2. DO NOT summarize or skip sections. Write long, deeply analytical paragraphs for each part to ensure a massive, full-length paper.\n"
-        f"3. Seamlessly incorporate data and citations from these actual scientific papers:\n{sources_block}\n\n"
-        f"Provide the complete comprehensive output without placeholders."
+        f"You are an elite academic professor and expert research builder. Write a comprehensive, multi-page, extremely deep "
+        f"academic research paper about '{title}' in language: {lang} using {style} citation style.\n\n"
+        f"STRICT REQUIREMENTS FOR LENGTH & STRUCTURE:\n"
+        f"1. Your text output must be very long, rich, highly detailed, and elaborate. Expand heavily on every point to ensure a substantial multi-page document.\n"
+        f"2. You MUST perfectly mimic, align with, and replicate the full structure, sections, and headings of the user's template below:\n{template_text}\n\n"
+        f"3. Integrate context and citations from these papers into the sections:\n{sources_block}\n\n"
+        f"Generate the full-length comprehensive scientific output now."
     )
     
-    url = "https://openrouter.ai/api/v1/chat/completions"
-    
-    # استخدام الموديل العملاق Llama 3.3 70B المجاني القادر على كتابة أبحاث طويلة جداً والالتزام التام بالقوالب
-    payload = {
-        "model": "meta-llama/llama-3.3-70b-instruct:free",
-        "messages": [
-            {"role": "system", "content": "You are a professional academic book and research writer who writes exhaustive, lengthy, and highly detailed papers based on user templates."},
-            {"role": "user", "content": prompt}
-        ]
-    }
-    
+    # استخدام مفتاحك الخاص لـ Gemini عبر الـ API المستقر الصافي لتوليد نصوص ضخمة ومطولة دون مشاكل
+    if GEMINI_KEY:
+        # استخدام النسخة المستقرة gemini-1.5-pro للحصول على أعلى جودة وأكبر عدد صفحات ممكن
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_KEY}"
+        payload = {
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {
+                "maxOutputTokens": 8192, # رفع الحد الأقصى للمخرجات لإنتاج بحث طويل جداً يتجاوز 10 صفحات
+                "temperature": 0.6
+            }
+        }
+        try:
+            response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
+            res_json = response.json()
+            if 'candidates' in res_json and len(res_json['candidates']) > 0:
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+        except:
+            pass
+
+    # نظام تبديل احتياطي تلقائي (Fallback) فائق لضمان استمرار العمل في حال تعثر خادم جوجل الرئيسي
     try:
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=160)
+        openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
+        payload_or = {
+            "model": "meta-llama/llama-3.3-70b-instruct:free",
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        response = requests.post(openrouter_url, json=payload_or, headers={"Content-Type": "application/json"}, timeout=120)
         res_json = response.json()
         if 'choices' in res_json and len(res_json['choices']) > 0:
             return res_json['choices'][0]['message']['content']
     except:
         pass
         
-    # خيار احتياطي سري في حال حدوث ضغط على الموديل الأول
-    try:
-        payload["model"] = "nousresearch/hermes-3-llama-3.1-8b:free"
-        response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=120)
-        res_json = response.json()
-        if 'choices' in res_json and len(res_json['choices']) > 0:
-            return res_json['choices'][0]['message']['content']
-    except:
-        pass
-        
-    return "ERROR_SYSTEM: السيرفرات العالمية تواجه ضغطاً حالياً، يرجى إعادة المحاولة بعد ثوانٍ قليلة."
+    return "ERROR_SYSTEM: الخادم مستغرق في معالجة البيانات الضخمة حالياً، يرجى إعادة الضغط على زر التشغيل فوراً لاستلام البحث المحدث."
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -133,10 +136,10 @@ with col2: citation_style = st.selectbox("📚 نظام توثيق الهوام�
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with st.spinner("📊 جاري قراءة كامل بنية مستند القالب بدقة..."):
+        with st.spinner("📊 جاري تحليل وقراءة قالب الـ Word كاملاً لمحاكاته..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
         if extracted_template:
-            with st.spinner("🌐 جاري جلب المراجع الأكاديمية العميقة..."):
+            with st.spinner("🌐 جاري جلب وتجميع المراجع الأكاديمية الشاملة..."):
                 all_combined_papers = fetch_google_scholar(research_title) + fetch_semantic_scholar(research_title) + fetch_arxiv(research_title)
             
             if not all_combined_papers:
@@ -144,7 +147,7 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             
             st.success(f"🔥 تم تأمين {len(all_combined_papers)} مرجعاً علمياً متقاطعة لبناء بحثك!")
             
-            with st.spinner("🧠 يقوم المحرك العملاق (70B) بصياغة البحث المطول وتطبيق بنية القالب بالكامل الآن..."):
+            with st.spinner("🧠 يقوم المحرك الاحترافي بصياغة بحث طويل ومطول ومطابق للقالب تماماً..."):
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
             
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
