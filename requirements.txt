@@ -17,4 +17,3 @@ python-dotenv
 
 # إنشاء وتصدير البحث النهائي بصيغة Word
 python-docx
-google-generativeai
