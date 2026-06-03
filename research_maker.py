@@ -2,23 +2,18 @@ import streamlit as st
 import requests
 import docx
 from io import BytesIO
-import os
 import xml.etree.ElementTree as ET
-from dotenv import load_dotenv
 
-# تفريغ الذاكرة المؤقتة وجلب المفاتيح البيئية
-load_dotenv()
-
-# جلب المفاتيح الصافية وتنظيفها من علامات التنصيص
-SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip().replace('"', '').replace("'", "")
-GEMINI_KEY = os.getenv("GEMINI_KEY", "").strip().replace('"', '').replace("'", "")
-
-# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER PRO V2
+# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
 
 st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER ULTRA</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: دمج المحركات العلمية + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
+
+# جلب المفاتيح بأمان كامل من خزنة Streamlit الآمنة (Secrets) لضمان عدم حظرها
+SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
+GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
 # ==================== قسم قراءة قالب الـ WORD ====================
 def extract_structure_from_docx(file_buffer):
@@ -34,10 +29,10 @@ def extract_structure_from_docx(file_buffer):
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
 
-# ==================== قسم الـ APIs الجديدة لتوسيع البحث ====================
+# ==================== قسم الـ APIs الموسعة لتجهيز البحث ====================
 def fetch_semantic_scholar(query):
     """[API 1] سحب الأبحاث الأكاديمية مجاناً من Semantic Scholar وبدون حدود"""
-    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=10&fields=title,abstract,url,authors"
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=10&fields=title,abstract,url"
     try:
         response = requests.get(url, timeout=10)
         data = response.json().get("data", [])
@@ -61,7 +56,6 @@ def fetch_arxiv(query):
         response = requests.get(url, timeout=10)
         root = ET.fromstring(response.text)
         papers = []
-        # فك تشفير الـ XML المرجوع من arXiv
         for entry in root.findall('{http://www.w3.org/2005/Atom}entry'):
             title = entry.find('{http://www.w3.org/2005/Atom}title').text
             summary = entry.find('{http://www.w3.org/2005/Atom}summary').text
@@ -77,7 +71,7 @@ def fetch_arxiv(query):
         return []
 
 def fetch_google_scholar(query):
-    """[API 3] المحرك الأساسي جلب الأبحاث التقليدية عبر SerpApi"""
+    """[API 3] جلب الأبحاث العلمية عبر SerpApi"""
     if not SERPAPI_KEY: return []
     url = "https://serpapi.com/search"
     params = {"engine": "google_scholar", "q": query, "hl": "en", "api_key": SERPAPI_KEY}
@@ -97,9 +91,8 @@ def fetch_google_scholar(query):
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على هيكل قالب الورد والمصادر الموسعة"""
     if not GEMINI_KEY:
-        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في ملف الـ .env"
+        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في خزنة الـ Secrets لـ Streamlit."
         
-    # تجميع وتنسيق البيانات المستخرجة من الـ 3 محركات بحث
     sources_block = ""
     for idx, p in enumerate(combined_papers):
         sources_block += f"\n[Source {idx+1} from {p['source']}]\nTitle: {p['title']}\nAbstract: {p['snippet']}\nLink: {p['link']}\n"
@@ -120,8 +113,8 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     
     Execution Plan:
     1. Fill each title/chapter from the template structure with rich, advanced, and elongated technical analysis.
-    2. Inject extensive in-text citations linking to the sources provided.
-    3. Make sure to generate all sections comprehensively to give maximum depth.
+    2. Inject extensive in-text citations linking to the sources provided (at least 20-30 citations distributed across the paper).
+    3. Make sure to generate all sections comprehensively to give maximum depth (around 15-20 pages if possible).
     4. Compile a perfect references grid at the end based on {style}.
     """
     
@@ -138,9 +131,9 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         if 'candidates' in result and len(result['candidates']) > 0:
             return result['candidates'][0]['content']['parts'][0]['text']
         else:
-            return "حدث خطأ في استجابة محرك الصياغة، يرجى إعادة المحاولة."
+            return "حدث خطأ في استجابة محرك الصياغة، يرجى التحقق من صلاحية المفتاح الجديد."
     except Exception as e:
-        return f"حدث خطأ أثناء التوليد: {e}"
+        return f"حدث خطأ أثناء الاتصال بالخادم: {e}"
 
 def create_formatted_docx(text, title):
     """حفظ وتصدير البحث العلمي الجديد في مستند Word منظم"""
@@ -159,7 +152,7 @@ def create_formatted_docx(text, title):
     bio.seek(0)
     return bio
 
-# ==================== بناء واجهة المستخدم الرسومية المستقرة ====================
+# ==================== بناء واجهة المستخدم الرسومية ====================
 research_title = st.text_input("📝 أولاً: اكتب عنوان البحث العلمي الجديد المُراد صناعته:")
 uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي (ليقوم النظام بنسخ هيكليته وفصوله التنسيقية):", type=["docx"])
 
@@ -171,50 +164,43 @@ with col2:
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        if not GEMINI_KEY:
-            st.error("🛑 خطأ تفعيل: يتطلب هذا النظام فائق التطور وجود GEMINI_KEY مفعل داخل الـ .env أولاً لكي يستطيع التوليد.")
-        else:
-            # 1. قراءة قالب الـ Word المرفوع واشتقاق الهيكل
-            with st.spinner("📊 جاري فتح مستند الـ Word وقراءة القالب البنيوي له..."):
-                extracted_template = extract_structure_from_docx(uploaded_file)
+        with st.spinner("📊 جاري فتح مستند الـ Word وقراءة القالب البنيوي له..."):
+            extracted_template = extract_structure_from_docx(uploaded_file)
+            
+        if extracted_template:
+            with st.spinner("🌐 جاري توسيع نطاق البحث والاستعلام الفوري من (Google Scholar + Semantic Scholar + arXiv)..."):
+                res_google = fetch_google_scholar(research_title)
+                res_semantic = fetch_semantic_scholar(research_title)
+                res_arxiv = fetch_arxiv(research_title)
                 
-            if extracted_template:
-                # 2. تشغيل الـ APIs الموسعة الثلاثة بالتوازي لجلب أكبر قدر من البيانات
-                with st.spinner("🌐 جاري توسيع نطاق البحث والاستعلام من (Google Scholar + Semantic Scholar + arXiv)..."):
-                    res_google = fetch_google_scholar(research_title)
-                    res_semantic = fetch_semantic_scholar(research_title)
-                    res_arxiv = fetch_arxiv(research_title)
-                    
-                    # دمج كل المراجع العلمية المجلوبة في مصفوفة واحدة
-                    all_combined_papers = res_google + res_semantic + res_arxiv
-                    
-                if all_combined_papers:
-                    st.success(f"🔥 نجاح خارق! تم سحب وتجميع {len(all_combined_papers)} مراجع علمية متقاطعة من كافة الشبكات الأكاديمية العالمية!")
-                    
-                    with st.expander("🔗 استكشاف قائمة المراجع الشاملة المجهّزة للبحث"):
-                        for idx, paper in enumerate(all_combined_papers):
-                            st.markdown(f"**[{idx+1}] {paper['title']}** — <span style='color:green;'>{paper['source']}</span>", unsafe_allow_html=True)
-                            st.write(paper['snippet'])
-                            st.markdown(f"[رابط المصدر الدائم]({paper['link']})")
-                            st.write("---")
-                            
-                    # 3. إرسال الهيكل وقاعدة البيانات لـ Gemini 1.5 Pro
-                    with st.spinner("🧠 يقوم العقل الاصطناعي الآن بمطابقة الهيكل المستخرج وكتابة فصول البحث بالتفصيل الأكاديمي الممتد..."):
-                        generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
+                all_combined_papers = res_google + res_semantic + res_arxiv
+                
+            if all_combined_papers:
+                st.success(f"🔥 تم تجميع {len(all_combined_papers)} مرجعاً علمياً متقاطعة من كافة الشبكات العالمية!")
+                
+                with st.expander("🔗 استكشاف قائمة المراجع الشاملة المجهّزة للبحث"):
+                    for idx, paper in enumerate(all_combined_papers):
+                        st.markdown(f"**[{idx+1}] {paper['title']}** — <span style='color:green;'>{paper['source']}</span>", unsafe_allow_html=True)
+                        st.write(paper['snippet'])
+                        st.markdown(f"[رابط المصدر الدائم]({paper['link']})")
+                        st.write("---")
                         
-                    st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
-                    st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
+                with st.spinner("🧠 يقوم نظام Gemini 1.5 Pro الآن بمطابقة هيكلية ملف الورد المرفوع وصياغة الفصول كاملة..."):
+                    generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
                     
-                    if "خطأ" not in generated_research:
-                        st.balloons()
-                        final_docx = create_formatted_docx(generated_research, research_title)
-                        st.download_button(
-                            label="📥 تحميل مستند البحث العلمي الكامل المتوافق مع قالبك (.docx)",
-                            data=final_docx,
-                            file_name=f"{research_title.replace(' ', '_')}_Final_Research.docx",
-                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                        )
-                else:
-                    st.warning("لم يتم العثور على مراجع في المحركات، يرجى تبسيط الكلمات الدلالية للعنوان.")
+                st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
+                st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
+                
+                if "خطأ" not in generated_research:
+                    st.balloons()
+                    final_docx = create_formatted_docx(generated_research, research_title)
+                    st.download_button(
+                        label="📥 تحميل مستند البحث العلمي الكامل المنسق تلقائياً (.docx)",
+                        data=final_docx,
+                        file_name=f"{research_title.replace(' ', '_')}_Final_Research.docx",
+                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    )
+            else:
+                st.warning("لم يتم العثور على مراجع، يرجى مراجعة صياغة العنوان أو الكلمات الدلالية.")
     else:
-        st.error("الرجاء إدخال عنوان البحث العلمي المطلوب ورفع مستند قالب الـ Word أولاً للتنفيذ.")
+        st.error("الرجاء إدخال عنوان البحث الجديد ورفع ملف قالب الـ Word أولاً.")
