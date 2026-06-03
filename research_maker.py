@@ -3,7 +3,7 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
-from google import genai  # استخدام المكتبة الرسمية
+import google.generativeai as genai  # الاستدعاء التقليدي المستقر والمحمي من التضارب
 
 # إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
@@ -16,11 +16,10 @@ st.write("---")
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
-# تهيئة عميل خادم Google GenAI الجديد
-client = None
+# تهيئة خادم جوجل بالمفتاح السري
 if GEMINI_KEY:
     try:
-        client = genai.Client(api_key=GEMINI_KEY)
+        genai.configure(api_key=GEMINI_KEY)
     except Exception as e:
         st.error(f"خطأ في تهيئة خادم جوجل: {e}")
 
@@ -104,7 +103,7 @@ def fetch_google_scholar(query):
 # ==================== عقل التوليد الذكي وصناعة المحتوى ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على الهيكل الجديد"""
-    if not client:
+    if not GEMINI_KEY:
         return "ERROR_KEY: لم يتم تهيئة عميل خادم جوجل بنجاح. يرجى التحقق من المفاتيح السرية."
         
     sources_block = ""
@@ -133,11 +132,9 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     """
     
     try:
-        # استخدام الموديل المستقر والأحدث المتوافق مع مكتبة Google الحديثة لعام 2026
-        response = client.models.generate_content(
-            model='gemini-2.5-pro',
-            contents=prompt
-        )
+        # استخدام الموديل فلاش المستقر كلياً والمتوافق مع استدعاء المكتبات التقليدية لضمان التوليد الفوري دون تعليق لقنوات الاتصال
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"ERROR_API: {e}"
