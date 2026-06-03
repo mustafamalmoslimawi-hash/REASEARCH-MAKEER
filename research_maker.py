@@ -3,7 +3,7 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
-import google.generativeai as genai  # استخدام المكتبة الرسمية المعتمدة لحل مشاكل الاتصال
+import google.generativeai as genai
 
 # إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
@@ -101,7 +101,7 @@ def fetch_google_scholar(query):
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على هيكل قالب الورد والمصادر الموسعة"""
     if not GEMINI_KEY:
-        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في خزنة الـ Secrets لـ Streamlit."
+        return "ERROR_KEY: لم يتم إضافة مفتاح Gemini API بشكل صحيح في خزنة الـ Secrets لـ Streamlit."
         
     sources_block = ""
     for idx, p in enumerate(combined_papers):
@@ -129,7 +129,6 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     """
     
     try:
-        # استخدام دالة التوليد الرسمية المستقرة والمحمية لـ Gemini 1.5 Pro
         model = genai.GenerativeModel('gemini-1.5-pro')
         response = model.generate_content(
             prompt,
@@ -140,7 +139,7 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         )
         return response.text
     except Exception as e:
-        return f"حدث خطأ أثناء صياغة المحتوى عبر مكتبة Google الرسمية: {e}\nيرجى مراجعة صلاحية مفتاح الـ API الخاص بك."
+        return f"ERROR_API: {e}"
 
 def create_formatted_docx(text, title):
     """حفظ وتصدير البحث العلمي الجديد في مستند Word منظم"""
@@ -171,7 +170,6 @@ with col2:
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        # إعداد مصفوفة تجميع احتياطية ذكية من مصفوفتين مجانيتين كلياً ومصفوفة مدفوعة
         with st.spinner("📊 جاري فتح مستند الـ Word وقراءة القالب البنيوي له..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
             
@@ -183,7 +181,6 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                 
                 all_combined_papers = res_google + res_semantic + res_arxiv
                 
-            # إذا تعطل محرك بسبب المفتاح، نقوم بعمل تجميعة طوارئ نصية لضمان عدم توقف النظام
             if not all_combined_papers:
                 all_combined_papers = [{
                     "title": f"General Overview on {research_title}",
@@ -207,7 +204,8 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
             st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
             
-            if "خطأ" not in generated_research:
+            # تم تعديل الشرط هنا ليعمل بنجاح دون أخطاء نصية تفوت تفعيل الأزرار
+            if "ERROR_" not in generated_research:
                 st.balloons()
                 final_docx = create_formatted_docx(generated_research, research_title)
                 st.download_button(
@@ -216,5 +214,7 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                     file_name=f"{research_title.replace(' ', '_')}_Final_Research.docx",
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
+            else:
+                st.error(f"تعذر إنتاج التقرير بسبب مشكلة في الخادم الرئيسي: {generated_research}")
     else:
         st.error("الرجاء إدخال عنوان البحث الجديد ورفع ملف قالب الـ Word أولاً لتشغيل النظام الجديد.")
