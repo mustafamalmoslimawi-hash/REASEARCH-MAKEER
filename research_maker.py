@@ -64,7 +64,7 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
     except: return []
 
-# ==================== المسار الحديث المعتمد لنماذج جيل 1.5 المستقرة ====================
+# ==================== تعديل دالة الاتصال لتتوافق مع مفاتيح الـ Vertex والروابط العامة الموحدة ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     if not GEMINI_KEY:
         return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
@@ -81,9 +81,16 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Provide a long, well-structured scientific output."
     )
     
-    # استخدام المسار الرسمي الجديد للنموذج المستقر من فئة 1.5 عبر منصة المطورين المحدثة
-    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
-    headers = {'Content-Type': 'application/json'}
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f'Bearer {GEMINI_KEY}' if GEMINI_KEY.startswith('AIza')==False else ''
+    }
+    
+    # استخدام الرابط المباشر للمطورين المتوافق مع كافة تصنيفات الحسابات والمفاتيح
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    if GEMINI_KEY.startswith('AIza'):
+        api_url += f"?key={GEMINI_KEY}"
+        
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
@@ -93,9 +100,10 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         if 'candidates' in res_json and res_json['candidates']:
             return res_json['candidates'][0]['content']['parts'][0]['text']
             
-        # خطة طوارئ تلقائية في حال حدوث تقييد للرابط الأول (Fallback)
         if 'error' in res_json:
-            fallback_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+            # محاولة بديلة هجينة في حال وجود مشكلة في إصدار الرابط
+            fallback_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+            if GEMINI_KEY.startswith('AIza'): fallback_url += f"?key={GEMINI_KEY}"
             fallback_res = requests.post(fallback_url, json=payload, headers=headers, timeout=120).json()
             if 'candidates' in fallback_res and fallback_res['candidates']:
                 return fallback_res['candidates'][0]['content']['parts'][0]['text']
@@ -104,7 +112,7 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         return "ERROR_RESPONSE: استجابة خادم جوجل غير مطابقة للمواصفات البرمجية الحالية."
         
     except Exception as e:
-        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة الخرجية: {e}"
+        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة الخارجية: {e}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -133,7 +141,6 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
                 all_combined_papers = fetch_google_scholar(research_title) + fetch_semantic_scholar(research_title) + fetch_arxiv(research_title)
             
-            # عرض ذكي لعدد الأبحاث المجلوبة بدقة تامة
             if not all_combined_papers:
                 all_combined_papers = [{"title": "General Context on " + research_title, "snippet": "Academic background data regarding the subject material.", "link": "https://scholar.google.com", "source": "Local System"}]
             
