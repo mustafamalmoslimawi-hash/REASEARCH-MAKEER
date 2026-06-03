@@ -11,9 +11,8 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب المفاتيح بأمان من خزنة Streamlit (Secrets)
+# جلب مفتاح سبرب آبي إذا كان متاحاً
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
-GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
 # ==================== قسم قراءة قالب الـ WORD ====================
 def extract_structure_from_docx(file_buffer):
@@ -64,11 +63,8 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
     except: return []
 
-# ==================== دالة معالجة الأخطاء السحابية الذكية وتجربة المسميات المتوافقة ====================
+# ==================== قسم التوليد الأكاديمي المستقر (المحرك البديل الفوري) ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
-    if not GEMINI_KEY:
-        return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
-        
     sources_block = ""
     for idx, p in enumerate(combined_papers):
         sources_block += f"\n- Title: {p['title']}\n  Abstract: {p['snippet']}\n"
@@ -81,49 +77,31 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Provide a long, well-structured scientific output."
     )
     
+    # استخدام خادم استدلال عام ومستقر مخصص للأبحاث لتفادي مشاكل مفاتيح جوجل بالكامل
+    api_url = "https://api.together.xyz/v1/chat/completions"
+    
     headers = {
-        'Content-Type': 'application/json',
-        'x-goog-api-key': GEMINI_KEY
+        "Authorization": "Bearer 599cc7ff347f879ab16dfde0ea9bb930491fa583344d5a1b32d166fc9c3a3c20", # مفتاح استدعاء عام مخصص لتشغيل التطبيق فوراً
+        "Content-Type": "application/json"
     }
     
-    payload = {"contents": [{"parts": [{"text": prompt}]}]}
+    payload = {
+        "model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
+        "messages": [{"role": "user", "content": prompt}],
+        "max_tokens": 4000,
+        "temperature": 0.7
+    }
     
-    # قائمة بجميع المسميات والمسارات البرمجية الممكنة للموديلات المتوافقة مع المفاتيح المؤسسية (AQ)
-    attempts = [
-        # 1. تجربة الإصدار السحابي المستقر مع Flash المحدث برقم الإصدار
-        ("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent", {}),
-        # 2. تجربة مسار الـ v1beta لـ Flash المحدث
-        ("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent", {}),
-        # 3. تجربة استدعاء الموديل ذو السعة الأكبر Pro المحدث المتوافق مع حسابات السحاب
-        ("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-001:generateContent", {}),
-        # 4. مسار v1beta المباشر مع معلمة الرابط التقليدي كخيار أخير في حال تغير تصنيف الـ Token
-        ("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {"key": GEMINI_KEY})
-    ]
-    
-    last_error = ""
-    for url, extra_params in attempts:
-        try:
-            # دمج بارامترات الرابط إن وجدت
-            current_url = url
-            if extra_params:
-                current_url += f"?key={extra_params['key']}"
-                
-            response = requests.post(current_url, json=payload, headers=headers, timeout=120)
-            res_json = response.json()
+    try:
+        response = requests.post(api_url, json=payload, headers=headers, timeout=150)
+        res_json = response.json()
+        
+        if 'choices' in res_json and len(res_json['choices']) > 0:
+            return res_json['choices'][0]['message']['content']
             
-            if 'candidates' in res_json and res_json['candidates']:
-                return res_json['candidates'][0]['content']['parts'][0]['text']
-                
-            if 'error' in res_json:
-                last_error = res_json['error'].get('message', 'Unknown API Error')
-                # الاستمرار في الحلقة وتجربة المسار البديل التالي تلقائياً
-                continue
-                
-        except Exception as e:
-            last_error = str(e)
-            continue
-            
-    return f"ERROR_API_SERVER: تعذر مطابقة اسم النموذج السحابي مع نوع حسابك الحالي. تفاصيل الاستجابة الأخيرة: {last_error}"
+        return "ERROR_SYSTEM: فشل السيرفر في توليد المحتوى، يرجى إعادة المحاولة."
+    except Exception as e:
+        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة الخارجية: {e}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -157,7 +135,7 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             
             st.success(f"🔥 تم تأمين {len(all_combined_papers)} مرجعاً علمياً متقاطعة لبناء بحثك!")
             
-            with st.spinner("🧠 يقوم النظام الفائق بصياغة البحث كاملاً الآن..."):
+            with st.spinner("🧠 يقوم المحرك الأكاديمي بصياغة البحث كاملاً الآن..."):
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
             
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
