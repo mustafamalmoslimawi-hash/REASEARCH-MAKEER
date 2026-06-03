@@ -3,7 +3,7 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
-import google.generativeai as genai
+from google import genai  # استخدام المكتبة الرسمية
 
 # إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
@@ -12,13 +12,17 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب المفاتيح بأمان كامل من خزنة Streamlit (Secrets) لضمان عدم حظرها
+# جلب المفاتيح بأمان كامل من خزنة Streamlit (Secrets)
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
-# تهيئة مكتبة الجيل الجديد لـ Gemini بالمفتاح السري
+# تهيئة عميل خادم Google GenAI الجديد
+client = None
 if GEMINI_KEY:
-    genai.configure(api_key=GEMINI_KEY)
+    try:
+        client = genai.Client(api_key=GEMINI_KEY)
+    except Exception as e:
+        st.error(f"خطأ في تهيئة خادم جوجل: {e}")
 
 # ==================== قسم قراءة قالب الـ WORD ====================
 def extract_structure_from_docx(file_buffer):
@@ -40,7 +44,7 @@ def extract_structure_from_docx(file_buffer):
 
 # ==================== قسم الـ APIs الموسعة لتجهيز البحث ====================
 def fetch_semantic_scholar(query):
-    """[API 1] سحب الأبحاث الأكاديمية مجاناً من Semantic Scholar وبدون حدود"""
+    """[API 1] سحب الأبحاث الأكاديمية مجاناً من Semantic Scholar"""
     url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=8&fields=title,abstract,url"
     try:
         response = requests.get(url, timeout=10)
@@ -59,7 +63,7 @@ def fetch_semantic_scholar(query):
         return []
 
 def fetch_arxiv(query):
-    """[API 2] سحب الأوراق الأكاديمية المفتوحة من مستودع arXiv العالمي مجاناً"""
+    """[API 2] سحب الأوراق الأكاديمية المفتوحة من مستودع arXiv العالمي"""
     url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=8"
     try:
         response = requests.get(url, timeout=10)
@@ -99,9 +103,9 @@ def fetch_google_scholar(query):
 
 # ==================== عقل التوليد الذكي وصناعة المحتوى ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
-    """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على هيكل قالب الورد والمصادر الموسعة"""
-    if not GEMINI_KEY:
-        return "ERROR_KEY: لم يتم إضافة مفتاح Gemini API بشكل صحيح في خزنة الـ Secrets لـ Streamlit."
+    """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على الهيكل الجديد"""
+    if not client:
+        return "ERROR_KEY: لم يتم تهيئة عميل خادم جوجل بنجاح. يرجى التحقق من المفاتيح السرية."
         
     sources_block = ""
     for idx, p in enumerate(combined_papers):
@@ -129,13 +133,10 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     """
     
     try:
-        model = genai.GenerativeModel('gemini-1.5-pro')
-        response = model.generate_content(
-            prompt,
-            generation_config=genai.types.GenerationConfig(
-                max_output_tokens=8192,
-                temperature=0.3
-            )
+        # استخدام الموديل المستقر والأحدث المتوافق مع مكتبة Google الحديثة لعام 2026
+        response = client.models.generate_content(
+            model='gemini-2.5-pro',
+            contents=prompt
         )
         return response.text
     except Exception as e:
@@ -198,13 +199,12 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                     st.markdown(f"[رابط المصدر الدائم]({paper['link']})")
                     st.write("---")
                     
-            with st.spinner("🧠 يقوم نظام Gemini 1.5 Pro الآن بمطابقة هيكلية ملف الورد المرفوع وصياغة الفصول كاملة..."):
+            with st.spinner("🧠 يقوم نظام Gemini الآن بمطابقة هيكلية ملف الورد المرفوع وصياغة الفصول كاملة..."):
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
                 
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
             st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
             
-            # تم تعديل الشرط هنا ليعمل بنجاح دون أخطاء نصية تفوت تفعيل الأزرار
             if "ERROR_" not in generated_research:
                 st.balloons()
                 final_docx = create_formatted_docx(generated_research, research_title)
