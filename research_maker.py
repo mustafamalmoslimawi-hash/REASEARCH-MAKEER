@@ -3,7 +3,7 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
-import google.generativeai as genai  # الاستدعاء التقليدي المستقر والمحمي من التضارب
+import google.generativeai as genai
 
 # إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
@@ -43,7 +43,6 @@ def extract_structure_from_docx(file_buffer):
 
 # ==================== قسم الـ APIs الموسعة لتجهيز البحث ====================
 def fetch_semantic_scholar(query):
-    """[API 1] سحب الأبحاث الأكاديمية مجاناً من Semantic Scholar"""
     url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=8&fields=title,abstract,url"
     try:
         response = requests.get(url, timeout=10)
@@ -62,7 +61,6 @@ def fetch_semantic_scholar(query):
         return []
 
 def fetch_arxiv(query):
-    """[API 2] سحب الأوراق الأكاديمية المفتوحة من مستودع arXiv العالمي"""
     url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=8"
     try:
         response = requests.get(url, timeout=10)
@@ -84,7 +82,6 @@ def fetch_arxiv(query):
         return []
 
 def fetch_google_scholar(query):
-    """[API 3] جلب الأبحاث العلمية عبر SerpApi"""
     if not SERPAPI_KEY: return []
     url = "https://serpapi.com/search"
     params = {"engine": "google_scholar", "q": query, "hl": "en", "api_key": SERPAPI_KEY}
@@ -102,9 +99,8 @@ def fetch_google_scholar(query):
 
 # ==================== عقل التوليد الذكي وصناعة المحتوى ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
-    """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على الهيكل الجديد"""
     if not GEMINI_KEY:
-        return "ERROR_KEY: لم يتم تهيئة عميل خادم جوجل بنجاح. يرجى التحقق من المفاتيح السرية."
+        return "ERROR_KEY: لم يتم تهيئة مفتاح جيلوجل السري بنجاح في خزنة الموقع."
         
     sources_block = ""
     for idx, p in enumerate(combined_papers):
@@ -112,35 +108,26 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         
     prompt = f"""
     You are an elite academic professor. Write an extensive, deep, and fully cited scientific research paper about the new topic: '{title}'.
-    
-    CRITICAL STRUCTURE MANDATE: You must completely mimic, follow, and fill the exact section flow, architectural pattern, and outline sequence from the "UPLOADED TEMPLATE STRUCT" provided below. Maintain its structure completely but generate entirely new academic content for '{title}'.
-    
+    CRITICAL STRUCTURE MANDATE: Follow and fill the exact section flow from the template.
     Target Language: {lang}
     Citation Style: {style}
     
-    [UPLOADED TEMPLATE STRUCT - FOLLOW THIS EXACTLY]:
+    [UPLOADED TEMPLATE STRUCT]:
     {template_text}
     
-    [ACADEMIC DATABASE TO BUILD FROM]:
+    [ACADEMIC DATABASE]:
     {sources_block}
-    
-    Execution Plan:
-    1. Fill each title/chapter from the template structure with rich, advanced, and elongated technical analysis.
-    2. Inject extensive in-text citations linking to the sources provided.
-    3. Make sure to generate all sections comprehensively to give maximum depth.
-    4. Compile a perfect references grid at the end based on {style}.
     """
     
     try:
-        # استخدام الموديل فلاش المستقر كلياً والمتوافق مع استدعاء المكتبات التقليدية لضمان التوليد الفوري دون تعليق لقنوات الاتصال
-        model = genai.GenerativeModel('gemini-1.5-flash')
+        # التعديل الحاسم: إجبار استدعاء النموذج المستقر عبر المسار المباشر لتخطي مشاكل الـ 404 للسيرفرات القديمة
+        model = genai.GenerativeModel(model_name='models/gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e:
         return f"ERROR_API: {e}"
 
 def create_formatted_docx(text, title):
-    """حفظ وتصدير البحث العلمي الجديد في مستند Word منظم"""
     doc = docx.Document()
     doc.add_heading(title, level=0)
     lines = text.split("\n")
@@ -156,9 +143,9 @@ def create_formatted_docx(text, title):
     bio.seek(0)
     return bio
 
-# ==================== بناء واجهة المستخدم الرسومية المستقرة ====================
+# ==================== بناء واجهة المستخدم ====================
 research_title = st.text_input("📝 أولاً: اكتب عنوان البحث العلمي الجديد المُراد صناعته:")
-uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي (ليقوم النظام بنسخ هيكليته وفصوله التنسيقية):", type=["docx"])
+uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي:", type=["docx"])
 
 col1, col2 = st.columns(2)
 with col1:
@@ -168,35 +155,19 @@ with col2:
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with st.spinner("📊 جاري فتح مستند الـ Word وقراءة القالب البنيوي له..."):
+        with st.spinner("📊 جاري تحليل ملف القالب..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
             
         if extracted_template:
-            with st.spinner("🌐 جاري جلب الأوراق والمراجع من المستودعات الأكاديمية العالمية..."):
-                res_google = fetch_google_scholar(research_title)
-                res_semantic = fetch_semantic_scholar(research_title)
-                res_arxiv = fetch_arxiv(research_title)
-                
-                all_combined_papers = res_google + res_semantic + res_arxiv
+            with st.spinner("🌐 جاري جلب الأبحاث العلمية الشاملة..."):
+                all_combined_papers = fetch_google_scholar(research_title) + fetch_semantic_scholar(research_title) + fetch_arxiv(research_title)
                 
             if not all_combined_papers:
-                all_combined_papers = [{
-                    "title": f"General Overview on {research_title}",
-                    "snippet": f"Academic background and foundational concepts regarding {research_title}.",
-                    "link": "https://scholar.google.com",
-                    "source": "Local Academic Framework"
-                }]
+                all_combined_papers = [{"title": f"General Overview on {research_title}", "snippet": "Academic background.", "link": "https://scholar.google.com", "source": "Local System"}]
                 
-            st.success(f"🔥 تم تجميع وتأمين {len(all_combined_papers)} مرجعاً علمياً متقاطعة لتوثيق بحثك!")
+            st.success(f"🔥 تم تأمين {len(all_combined_papers)} مرجعاً علمياً لتوثيق بحثك!")
             
-            with st.expander("🔗 استكشاف قائمة المراجع الشاملة المجهّزة للبحث"):
-                for idx, paper in enumerate(all_combined_papers):
-                    st.markdown(f"**[{idx+1}] {paper['title']}** — <span style='color:green;'>{paper['source']}</span>", unsafe_allow_html=True)
-                    st.write(paper['snippet'])
-                    st.markdown(f"[رابط المصدر الدائم]({paper['link']})")
-                    st.write("---")
-                    
-            with st.spinner("🧠 يقوم نظام Gemini الآن بمطابقة هيكلية ملف الورد المرفوع وصياغة الفصول كاملة..."):
+            with st.spinner("🧠 يقوم النظام بصياغة الفصول كاملة الآن..."):
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
                 
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
@@ -212,6 +183,6 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                     mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 )
             else:
-                st.error(f"تعذر إنتاج التقرير بسبب مشكلة في الخادم الرئيسي: {generated_research}")
+                st.error(f"تنبيه: {generated_research}")
     else:
-        st.error("الرجاء إدخال عنوان البحث الجديد ورفع ملف قالب الـ Word أولاً لتشغيل النظام الجديد.")
+        st.error("الرجاء إدخال عنوان البحث ورفع الملف أولاً.")
