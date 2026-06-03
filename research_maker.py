@@ -3,7 +3,6 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
-import google.generativeai as genai
 
 # إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
@@ -16,16 +15,8 @@ st.write("---")
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
-# تهيئة خادم جوجل بالمفتاح السري
-if GEMINI_KEY:
-    try:
-        genai.configure(api_key=GEMINI_KEY)
-    except Exception as e:
-        st.error(f"خطأ في تهيئة خادم جوجل: {e}")
-
 # ==================== قسم قراءة قالب الـ WORD ====================
 def extract_structure_from_docx(file_buffer):
-    """قراءة مستند الـ Word المرفوع واستخراج الهيكل والترتيب منه تلقائياً"""
     try:
         doc = docx.Document(file_buffer)
         structure_lines = []
@@ -41,27 +32,17 @@ def extract_structure_from_docx(file_buffer):
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
 
-# ==================== قسم الـ APIs الموسعة لتجهيز البحث ====================
+# ==================== قسم الـ APIs لتجهيز المراجع ====================
 def fetch_semantic_scholar(query):
-    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=8&fields=title,abstract,url"
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=5&fields=title,abstract,url"
     try:
         response = requests.get(url, timeout=10)
         data = response.json().get("data", [])
-        papers = []
-        for item in data:
-            if item.get("abstract") or item.get("title"):
-                papers.append({
-                    "title": item.get("title", "No Title"),
-                    "snippet": item.get("abstract", "No abstract available."),
-                    "link": item.get("url", "#"),
-                    "source": "Semantic Scholar"
-                })
-        return papers
-    except:
-        return []
+        return [{"title": item.get("title", "No Title"), "snippet": item.get("abstract", "No abstract available."), "link": item.get("url", "#"), "source": "Semantic Scholar"} for item in data if item.get("abstract")]
+    except: return []
 
 def fetch_arxiv(query):
-    url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=8"
+    url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=5"
     try:
         response = requests.get(url, timeout=10)
         root = ET.fromstring(response.text)
@@ -69,17 +50,9 @@ def fetch_arxiv(query):
         for entry in root.findall('{http://www.w3.org/2005/Atom}entry'):
             title = entry.find('{http://www.w3.org/2005/Atom}title').text
             summary = entry.find('{http://www.w3.org/2005/Atom}summary')
-            snippet = summary.text if summary is not None else "No summary available."
-            link = entry.find('{http://www.w3.org/2005/Atom}id').text
-            papers.append({
-                "title": title.strip().replace("\n", ""),
-                "snippet": snippet.strip().replace("\n", " "),
-                "link": link,
-                "source": "arXiv Repository"
-            })
+            papers.append({"title": title.strip().replace("\n", ""), "snippet": summary.text.strip().replace("\n", " ") if summary is not None else "", "link": entry.find('{http://www.w3.org/2005/Atom}id').text, "source": "arXiv Repository"})
         return papers
-    except:
-        return []
+    except: return []
 
 def fetch_google_scholar(query):
     if not SERPAPI_KEY: return []
@@ -88,101 +61,71 @@ def fetch_google_scholar(query):
     try:
         response = requests.get(url, params=params, timeout=10)
         results = response.json().get("organic_results", [])
-        return [{
-            "title": item.get("title", "No Title"),
-            "snippet": item.get("snippet", "No abstract available."),
-            "link": item.get("link", "#"),
-            "source": "Google Scholar"
-        } for item in results[:8]]
-    except:
-        return []
+        return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
+    except: return []
 
-# ==================== عقل التوليد الذكي وصناعة المحتوى ====================
+# ==================== الاتصال المباشر عبر بروتوكول HTTP الآمن لتفادي الـ 404 ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     if not GEMINI_KEY:
-        return "ERROR_KEY: لم يتم تهيئة مفتاح جيلوجل السري بنجاح في خزنة الموقع."
+        return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
         
     sources_block = ""
     for idx, p in enumerate(combined_papers):
-        sources_block += f"\n[Source {idx+1} from {p['source']}]\nTitle: {p['title']}\nAbstract: {p['snippet']}\nLink: {p['link']}\n"
+        sources_block += f"\n[Source {idx+1}]\nTitle: {p['title']}\nAbstract: {p['snippet']}\n"
         
-    prompt = f"""
-    You are an elite academic professor. Write an extensive, deep, and fully cited scientific research paper about the new topic: '{title}'.
-    CRITICAL STRUCTURE MANDATE: Follow and fill the exact section flow from the template.
-    Target Language: {lang}
-    Citation Style: {style}
+    prompt = f"You are an elite professor. Write a deep academic research paper about '{title}' in language: {lang} using {style} style. Follow this layout structure:\n{template_text}\n\nUse these references to build content:\n{sources_block}"
     
-    [UPLOADED TEMPLATE STRUCT]:
-    {template_text}
-    
-    [ACADEMIC DATABASE]:
-    {sources_block}
-    """
+    # استخدام الرابط الخام المباشر للنموذج المستقر لتجنب مشاكل توافق المكتبات
+    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    headers = {'Content-Type': 'application/json'}
+    payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
-        # التعديل الحاسم: إجبار استدعاء النموذج المستقر عبر المسار المباشر لتخطي مشاكل الـ 404 للسيرفرات القديمة
-        model = genai.GenerativeModel(model_name='models/gemini-1.5-flash')
-        response = model.generate_content(prompt)
-        return response.text
+        response = requests.post(api_url, json=payload, headers=headers, timeout=60)
+        res_json = response.json()
+        return res_json['candidates'][0]['content']['parts'][0]['text']
     except Exception as e:
-        return f"ERROR_API: {e}"
+        return f"ERROR_API: تأكد من صيانة المفتاح السري، تفاصيل الخطأ: {e}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
     doc.add_heading(title, level=0)
-    lines = text.split("\n")
-    for line in lines:
-        clean_line = line.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
-        if not clean_line: continue
-        if any(keyword in line for keyword in ["CHAPTER", "Introduction", "Review", "Discussion", "Conclusion", "References", "المبحث", "الفصل"]):
-            doc.add_heading(clean_line, level=1)
-        else:
-            doc.add_paragraph(clean_line)
+    for line in text.split("\n"):
+        clean = line.replace("**", "").replace("###", "").replace("##", "").strip()
+        if clean: doc.add_paragraph(clean)
     bio = BytesIO()
     doc.save(bio)
     bio.seek(0)
     return bio
 
-# ==================== بناء واجهة المستخدم ====================
+# ==================== واجهة المستخدم الرسومية ====================
 research_title = st.text_input("📝 أولاً: اكتب عنوان البحث العلمي الجديد المُراد صناعته:")
-uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي:", type=["docx"])
+uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي تلقائياً:", type=["docx"])
 
 col1, col2 = st.columns(2)
-with col1:
-    language = st.selectbox("🌐 لغة الكتابة الأكاديمية المطلوبة:", ["English", "العربية"])
-with col2:
-    citation_style = st.selectbox("📚 نظام توثيق الهوامش والملحقات:", ["APA", "IEEE", "Harvard"])
+with col1: language = st.selectbox("🌐 لغة الكتابة الأكاديمية المطلوبة:", ["English", "العربية"])
+with col2: citation_style = st.selectbox("📚 نظام توثيق الهوامش والملحقات:", ["APA", "IEEE", "Harvard"])
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with st.spinner("📊 جاري تحليل ملف القالب..."):
+        with st.spinner("📊 جاري قراءة بنية المستند..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
-            
         if extracted_template:
-            with st.spinner("🌐 جاري جلب الأبحاث العلمية الشاملة..."):
+            with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
                 all_combined_papers = fetch_google_scholar(research_title) + fetch_semantic_scholar(research_title) + fetch_arxiv(research_title)
-                
             if not all_combined_papers:
-                all_combined_papers = [{"title": f"General Overview on {research_title}", "snippet": "Academic background.", "link": "https://scholar.google.com", "source": "Local System"}]
-                
-            st.success(f"🔥 تم تأمين {len(all_combined_papers)} مرجعاً علمياً لتوثيق بحثك!")
+                all_combined_papers = [{"title": "General Context", "snippet": "Academic background data.", "link": "#", "source": "Local System"}]
             
-            with st.spinner("🧠 يقوم النظام بصياغة الفصول كاملة الآن..."):
+            st.success(f"🔥 تم تأمين {len(all_combined_papers)} مرجعاً علمياً متقاطعة لبناء بحثك!")
+            
+            with st.spinner("🧠 يقوم النظام الفائق بصياغة البحث كاملاً الآن..."):
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
-                
+            
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
             st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
             
             if "ERROR_" not in generated_research:
                 st.balloons()
-                final_docx = create_formatted_docx(generated_research, research_title)
-                st.download_button(
-                    label="📥 تحميل مستند البحث العلمي الكامل المنسق تلقائياً (.docx)",
-                    data=final_docx,
-                    file_name=f"{research_title.replace(' ', '_')}_Final_Research.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                )
-            else:
-                st.error(f"تنبيه: {generated_research}")
+                st.download_button(label="📥 تحميل مستند البحث العلمي الكامل (.docx)", data=create_formatted_docx(generated_research, research_title), file_name=f"{research_title.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     else:
         st.error("الرجاء إدخال عنوان البحث ورفع الملف أولاً.")
