@@ -3,6 +3,7 @@ import requests
 import docx
 from io import BytesIO
 import os
+import xml.etree.ElementTree as ET
 from dotenv import load_dotenv
 
 # تفريغ الذاكرة المؤقتة وجلب المفاتيح البيئية
@@ -12,87 +13,123 @@ load_dotenv()
 SERPAPI_KEY = os.getenv("SERPAPI_KEY", "").strip().replace('"', '').replace("'", "")
 GEMINI_KEY = os.getenv("GEMINI_KEY", "").strip().replace('"', '').replace("'", "")
 
-# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER المطوّر
-st.set_page_config(page_title="RESEARCH-MAKER PRO", layout="wide")
+# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER PRO V2
+st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
 
-st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER PRO</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>النظام الأكاديمي المتقدم لتوليد البحوث المطولة (20 صفحة) وأكثر من 30 مصدراً علمياً</h4>", unsafe_allow_html=True)
+st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER ULTRA</h1>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: دمج المحركات العلمية + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-def fetch_extensive_google_scholar(query):
-    """جلب مكثف لأكثر من 30 مرجعاً أكاديمياً عبر SerpApi باستخدام الترقيم التلقائي (Pagination)"""
-    if not SERPAPI_KEY:
-        return []
-    
-    all_filtered_papers = []
-    # سنقوم بعمل 4 جولات سحب متتالية لجمع ما يقارب 35 إلى 40 مرجعاً علمياً
-    for start_page in [0, 10, 20, 30]:
-        url = "https://serpapi.com/search"
-        params = {
-            "engine": "google_scholar",
-            "q": query,
-            "hl": "en",
-            "start": start_page,
-            "api_key": SERPAPI_KEY
-        }
-        try:
-            response = requests.get(url, params=params)
-            results = response.json().get("organic_results", [])
-            for item in results:
-                all_filtered_papers.append({
-                    "title": item.get("title", "No Title"),
-                    "snippet": item.get("snippet", "No abstract available."),
-                    "link": item.get("link", "#"),
-                    "authors": item.get("publication_info", {}).get("summary", "Unknown Authors")
-                })
-        except:
-            break # التوقف في حال حدوث أي انقطاع بالاتصال
-            
-    return all_filtered_papers[:35]  # الاحتفاظ بأفضل 35 مصدراً علمياً متميزاً
+# ==================== قسم قراءة قالب الـ WORD ====================
+def extract_structure_from_docx(file_buffer):
+    """قراءة مستند الـ Word المرفوع واستخراج الهيكل والترتيب منه تلقائياً"""
+    try:
+        doc = docx.Document(file_buffer)
+        full_text = []
+        for para in doc.paragraphs:
+            if para.text.strip():
+                full_text.append(para.text.strip())
+        return "\n".join(full_text)
+    except Exception as e:
+        st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
+        return ""
 
-def generate_deep_academic_paper(title, context_papers, lang, style):
-    """استدعاء عقل Gemini المتطور لصياغة كتابة أكاديمية ممتدة وشديدة التفصيل (تحاكي 20 صفحة)"""
+# ==================== قسم الـ APIs الجديدة لتوسيع البحث ====================
+def fetch_semantic_scholar(query):
+    """[API 1] سحب الأبحاث الأكاديمية مجاناً من Semantic Scholar وبدون حدود"""
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=10&fields=title,abstract,url,authors"
+    try:
+        response = requests.get(url, timeout=10)
+        data = response.json().get("data", [])
+        papers = []
+        for item in data:
+            if item.get("abstract"):
+                papers.append({
+                    "title": item.get("title", "No Title"),
+                    "snippet": item.get("abstract", ""),
+                    "link": item.get("url", "#"),
+                    "source": "Semantic Scholar"
+                })
+        return papers
+    except:
+        return []
+
+def fetch_arxiv(query):
+    """[API 2] سحب الأوراق الأكاديمية المفتوحة من مستودع arXiv العالمي مجاناً"""
+    url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=10"
+    try:
+        response = requests.get(url, timeout=10)
+        root = ET.fromstring(response.text)
+        papers = []
+        # فك تشفير الـ XML المرجوع من arXiv
+        for entry in root.findall('{http://www.w3.org/2005/Atom}entry'):
+            title = entry.find('{http://www.w3.org/2005/Atom}title').text
+            summary = entry.find('{http://www.w3.org/2005/Atom}summary').text
+            link = entry.find('{http://www.w3.org/2005/Atom}id').text
+            papers.append({
+                "title": title.strip().replace("\n", ""),
+                "snippet": summary.strip().replace("\n", " "),
+                "link": link,
+                "source": "arXiv Repository"
+            })
+        return papers
+    except:
+        return []
+
+def fetch_google_scholar(query):
+    """[API 3] المحرك الأساسي جلب الأبحاث التقليدية عبر SerpApi"""
+    if not SERPAPI_KEY: return []
+    url = "https://serpapi.com/search"
+    params = {"engine": "google_scholar", "q": query, "hl": "en", "api_key": SERPAPI_KEY}
+    try:
+        response = requests.get(url, params=params)
+        results = response.json().get("organic_results", [])
+        return [{
+            "title": item.get("title", "No Title"),
+            "snippet": item.get("snippet", "No abstract available."),
+            "link": item.get("link", "#"),
+            "source": "Google Scholar"
+        } for item in results[:10]]
+    except:
+        return []
+
+# ==================== عقل التوليد الذكي وصناعة المحتوى ====================
+def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
+    """توجيه ذكاء Gemini لبناء محتوى البحث بالاعتماد الكلي على هيكل قالب الورد والمصادر الموسعة"""
     if not GEMINI_KEY:
-        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في ملف البيئة لتوليد البحث الطويل."
+        return "خطأ: لم يتم إضافة مفتاح Gemini API بشكل صحيح في ملف الـ .env"
         
-    # دمج الـ 35 مصدراً وبناء قاعدة بيانات ضخمة للذكاء الاصطناعي ليقتبس منها
-    papers_text = ""
-    for idx, p in enumerate(context_papers):
-        papers_text += f"\n[Source {idx+1}] Title: {p['title']} | Authors: {p['authors']} | Data: {p['snippet']}\n"
+    # تجميع وتنسيق البيانات المستخرجة من الـ 3 محركات بحث
+    sources_block = ""
+    for idx, p in enumerate(combined_papers):
+        sources_block += f"\n[Source {idx+1} from {p['source']}]\nTitle: {p['title']}\nAbstract: {p['snippet']}\nLink: {p['link']}\n"
         
     prompt = f"""
-    You are a distinguished senior academic researcher and professor. Write an exhaustive, comprehensive, and deeply analyzed scientific research paper about the topic: '{title}'.
-    The target output must simulate a massive 20-page monograph (approximately 6,000 to 8,000 words).
+    You are an elite academic professor. Write an extensive, deep, and fully cited scientific research paper about the new topic: '{title}'.
+    
+    CRITICAL STRUCTURE MANDATE: You must completely mimic, follow, and fill the exact section flow, architectural pattern, and outline sequence from the "UPLOADED TEMPLATE STRUCT" provided below. Maintain its structure completely but generate entirely new academic content for '{title}'.
     
     Target Language: {lang}
     Citation Style: {style}
     
-    You MUST strictly review, incorporate, and cite ALL the 35 academic sources provided below. Use exhaustive in-text citations throughout every paragraph (e.g., [1], [2], [3]... up to [35] depending on the text).
+    [UPLOADED TEMPLATE STRUCT - FOLLOW THIS EXACTLY]:
+    {template_text}
     
-    Sources Database:
-    {papers_text}
+    [ACADEMIC DATABASE TO BUILD FROM]:
+    {sources_block}
     
-    Strict Structural Requirements to hit the 20-page depth:
-    1. ABSTRACT & KEYWORDS: Detailed synthesis.
-    2. CHAPTER 1: INTRODUCTION & BACKGROUND: Elaborate deeply on historical context, global significance, and problem statements (minimum 1,500 words).
-    3. CHAPTER 2: EXTENSIVE LITERATURE REVIEW: Systematically compare, contrast, and synthesize all ideas from the 35 sources provided. Dive deep into conflicting perspectives.
-    4. CHAPTER 3: METHODOLOGICAL FRAMEWORK & ANALYSIS: Expand heavily on mathematical, clinical, or social methodologies applicable to '{title}'.
-    5. CHAPTER 4: RESULTS, DEEP DISCUSSION & IMPLICATIONS: Deduce comprehensive analytical insights, global impacts, and future trends.
-    6. CHAPTER 5: CONCLUSION & RECOMMENDATIONS.
-    7. COMPREHENSIVE REFERENCES: List all the 35 sources used sequentially according to the {style} guidelines.
-    
-    Make the style extremely scholarly, formal, sophisticated, and highly descriptive to fulfill the maximum word capacity. Do not summarize; expand every point to its absolute limit.
+    Execution Plan:
+    1. Fill each title/chapter from the template structure with rich, advanced, and elongated technical analysis.
+    2. Inject extensive in-text citations linking to the sources provided.
+    3. Make sure to generate all sections comprehensively to give maximum depth.
+    4. Compile a perfect references grid at the end based on {style}.
     """
     
-    # استخدام نموذج Pro المتطور لمعالجة النصوص الضخمة والبحوث الطويلة جداً
     url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_KEY}"
     headers = {"Content-Type": "application/json"}
     payload = {
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {
-            "maxOutputTokens": 8192,  # رفع حد التوليد الأقصى للنصوص الضخمة والبحوث المطولة
-            "temperature": 0.3
-        }
+        "generationConfig": {"maxOutputTokens": 8192, "temperature": 0.3}
     }
     
     try:
@@ -100,77 +137,84 @@ def generate_deep_academic_paper(title, context_papers, lang, style):
         result = response.json()
         if 'candidates' in result and len(result['candidates']) > 0:
             return result['candidates'][0]['content']['parts'][0]['text']
-        elif 'error' in result:
-            return f"خطأ من خوادم جوجل (API Error): {result['error'].get('message', 'تفاصيل غير معروفة')}"
         else:
-            return "حدث استجابة غير متوقعة من خوادم جوجل، تأكد من سلامة المفتاح وحسابك."
+            return "حدث خطأ في استجابة محرك الصياغة، يرجى إعادة المحاولة."
     except Exception as e:
-        return f"حدث خطأ أثناء الاتصال بنظام Gemini المطور: {e}"
+        return f"حدث خطأ أثناء التوليد: {e}"
 
-def create_rich_word_document(text, title):
-    """تحويل البحث الطويل والمصادر إلى ملف Word مخصص ومصمم بطريقة أكاديمية منسقة للطباعة"""
+def create_formatted_docx(text, title):
+    """حفظ وتصدير البحث العلمي الجديد في مستند Word منظم"""
     doc = docx.Document()
     doc.add_heading(title, level=0)
-    
     lines = text.split("\n")
     for line in lines:
         clean_line = line.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
-        if not clean_line:
-            continue
-        if "CHAPTER" in line or "Introduction" in line or "Review" in line or "Discussion" in line or "References" in line or "Conclusion" in line:
+        if not clean_line: continue
+        if any(keyword in line for keyword in ["CHAPTER", "Introduction", "Review", "Discussion", "Conclusion", "References"]):
             doc.add_heading(clean_line, level=1)
         else:
             doc.add_paragraph(clean_line)
-            
     bio = BytesIO()
     doc.save(bio)
     bio.seek(0)
     return bio
 
-# بناء الواجهة الرسومية المتطورة للمستخدم
-research_title = st.text_input("📝 أدخل عنوان البحث العلمي المطول المطلوب إنشاؤه (سيتم سحب +30 مرجعاً صريحاً):")
+# ==================== بناء واجهة المستخدم الرسومية المستقرة ====================
+research_title = st.text_input("📝 أولاً: اكتب عنوان البحث العلمي الجديد المُراد صناعته:")
+uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي (ليقوم النظام بنسخ هيكليته وفصوله التنسيقية):", type=["docx"])
 
 col1, col2 = st.columns(2)
 with col1:
-    language = st.selectbox("🌐 لغة الصياغة الأكاديمية المطولة:", ["English", "العربية"])
+    language = st.selectbox("🌐 لغة الكتابة الأكاديمية المطلوبة:", ["English", "العربية"])
 with col2:
-    citation_style = st.selectbox("📚 نظام توثيق المراجع الدولي (لأكثر من 30 مصدراً):", ["APA", "IEEE", "Harvard"])
+    citation_style = st.selectbox("📚 نظام توثيق الهوامش والملحقات:", ["APA", "IEEE", "Harvard"])
 
-if st.button("🚀 ابدأ التوليد العميق وصياغة الـ 20 صفحة"):
-    if research_title:
-        if not SERPAPI_KEY or not GEMINI_KEY:
-            st.error("🛑 خطأ في الإعدادات: هذا النظام يتطلب وجود SERPAPI_KEY و GEMINI_KEY معاً في ملف الـ .env ليعمل بنجاح.")
+if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
+    if research_title and uploaded_file is not None:
+        if not GEMINI_KEY:
+            st.error("🛑 خطأ تفعيل: يتطلب هذا النظام فائق التطور وجود GEMINI_KEY مفعل داخل الـ .env أولاً لكي يستطيع التوليد.")
         else:
-            with st.spinner("🔄 جاري تفعيل البحث العميق المتتالي لجمع أكثر من 30 مرجعاً علمياً من Google Scholar..."):
-                all_papers = fetch_extensive_google_scholar(research_title)
+            # 1. قراءة قالب الـ Word المرفوع واشتقاق الهيكل
+            with st.spinner("📊 جاري فتح مستند الـ Word وقراءة القالب البنيوي له..."):
+                extracted_template = extract_structure_from_docx(uploaded_file)
                 
-            if len(all_papers) >= 20:
-                st.success(f"✅ مذهل! تم جلب وتصفية {len(all_papers)} مصدراً أكاديمياً جاهزاً للتضمين صراحة!")
-                
-                with st.expander("🔗 استعراض قاعدة بيانات الـ +30 مصدراً العلمي المستخرجة"):
-                    for i, paper in enumerate(all_papers):
-                        st.markdown(f"**[{i+1}] {paper['title']}**")
-                        st.caption(f"المصدر والمؤلفون: {paper['authors']}")
-                        st.write(paper['snippet'])
-                        st.markdown(f"[رابط المصدر الأكاديمي]({paper['link']})")
-                        st.write("---")
-                
-                with st.spinner("🧠 يقوم نموذج Gemini 1.5 Pro الآن بتحليل البيانات وصياغة الـ 20 صفحة بالتفصيل الشديد... قد يستغرق دقيقة نظراً لضخامة البحث:"):
-                    generated_text = generate_deep_academic_paper(research_title, all_papers, language, citation_style)
+            if extracted_template:
+                # 2. تشغيل الـ APIs الموسعة الثلاثة بالتوازي لجلب أكبر قدر من البيانات
+                with st.spinner("🌐 جاري توسيع نطاق البحث والاستعلام من (Google Scholar + Semantic Scholar + arXiv)..."):
+                    res_google = fetch_google_scholar(research_title)
+                    res_semantic = fetch_semantic_scholar(research_title)
+                    res_arxiv = fetch_arxiv(research_title)
                     
-                st.subheader("📄 معاينة مسودة البحث العلمي الضخم:")
-                st.text_area("نص البحث الممتد بالكامل", generated_text, height=500)
-                
-                if "خطأ" not in generated_text and "Error" not in generated_text:
-                    st.balloons()
-                    word_file = create_rich_word_document(generated_text, research_title)
-                    st.download_button(
-                        label="📥 تحميل البحث الأكاديمي الضخم والمستقر كاملاً بصيغة ملف Word (.docx)",
-                        data=word_file,
-                        file_name=f"{research_title.replace(' ', '_')}_Extended_Research_Paper.docx",
-                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    )
-            else:
-                st.warning(f"تم العثور على {len(all_papers)} مصادر فقط. يرجى تجربة عنوان بحثي عام أو معروف عالمياً لضمان سحب أكثر من 30 مصدراً بنجاح.")
+                    # دمج كل المراجع العلمية المجلوبة في مصفوفة واحدة
+                    all_combined_papers = res_google + res_semantic + res_arxiv
+                    
+                if all_combined_papers:
+                    st.success(f"🔥 نجاح خارق! تم سحب وتجميع {len(all_combined_papers)} مراجع علمية متقاطعة من كافة الشبكات الأكاديمية العالمية!")
+                    
+                    with st.expander("🔗 استكشاف قائمة المراجع الشاملة المجهّزة للبحث"):
+                        for idx, paper in enumerate(all_combined_papers):
+                            st.markdown(f"**[{idx+1}] {paper['title']}** — <span style='color:green;'>{paper['source']}</span>", unsafe_allow_html=True)
+                            st.write(paper['snippet'])
+                            st.markdown(f"[رابط المصدر الدائم]({paper['link']})")
+                            st.write("---")
+                            
+                    # 3. إرسال الهيكل وقاعدة البيانات لـ Gemini 1.5 Pro
+                    with st.spinner("🧠 يقوم العقل الاصطناعي الآن بمطابقة الهيكل المستخرج وكتابة فصول البحث بالتفصيل الأكاديمي الممتد..."):
+                        generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
+                        
+                    st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
+                    st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
+                    
+                    if "خطأ" not in generated_research:
+                        st.balloons()
+                        final_docx = create_formatted_docx(generated_research, research_title)
+                        st.download_button(
+                            label="📥 تحميل مستند البحث العلمي الكامل المتوافق مع قالبك (.docx)",
+                            data=final_docx,
+                            file_name=f"{research_title.replace(' ', '_')}_Final_Research.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        )
+                else:
+                    st.warning("لم يتم العثور على مراجع في المحركات، يرجى تبسيط الكلمات الدلالية للعنوان.")
     else:
-        st.error("الرجاء كتابة عنوان البحث الأكاديمي أولاً.")
+        st.error("الرجاء إدخال عنوان البحث العلمي المطلوب ورفع مستند قالب الـ Word أولاً للتنفيذ.")
