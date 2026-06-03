@@ -11,7 +11,7 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب المفاتيح بأمان كامل من خزنة Streamlit الآمنة (Secrets) لضمان عدم حظرها
+# لضمان عدم حظرها Streamlit (Secrets) جلب المفاتيح بأمان كامل من خزنة
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
@@ -113,8 +113,8 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     
     Execution Plan:
     1. Fill each title/chapter from the template structure with rich, advanced, and elongated technical analysis.
-    2. Inject extensive in-text citations linking to the sources provided (at least 20-30 citations distributed across the paper).
-    3. Make sure to generate all sections comprehensively to give maximum depth (around 15-20 pages if possible).
+    2. Inject extensive in-text citations linking to the sources provided.
+    3. Make sure to generate all sections comprehensively to give maximum depth.
     4. Compile a perfect references grid at the end based on {style}.
     """
     
@@ -131,7 +131,7 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         if 'candidates' in result and len(result['candidates']) > 0:
             return result['candidates'][0]['content']['parts'][0]['text']
         else:
-            return "حدث خطأ في استجابة محرك الصياغة، يرجى التحقق من صلاحية المفتاح الجديد."
+            return "حدث خطأ في استجابة محرك الصياغة، يرجى التحقق من صلاحية المفتاح الجديد المضاف في السيرفر."
     except Exception as e:
         return f"حدث خطأ أثناء الاتصال بالخادم: {e}"
 
@@ -148,11 +148,11 @@ def create_formatted_docx(text, title):
         else:
             doc.add_paragraph(clean_line)
     bio = BytesIO()
-    doc.save(bio)
+    doc.save(doc.save(bio))
     bio.seek(0)
     return bio
 
-# ==================== بناء واجهة المستخدم الرسومية ====================
+# ==================== بناء واجهة المستخدم الرسومية المستقرة ====================
 research_title = st.text_input("📝 أولاً: اكتب عنوان البحث العلمي الجديد المُراد صناعته:")
 uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي (ليقوم النظام بنسخ هيكليته وفصوله التنسيقية):", type=["docx"])
 
@@ -186,6 +186,7 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                         st.write("---")
                         
                 with st.spinner("🧠 يقوم نظام Gemini 1.5 Pro الآن بمطابقة هيكلية ملف الورد المرفوع وصياغة الفصول كاملة..."):
+                    # هنا استدعاء الدالة الجديدة الصحيحة لمنع خطأ الـ NameError
                     generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
                     
                 st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
@@ -203,4 +204,4 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             else:
                 st.warning("لم يتم العثور على مراجع، يرجى مراجعة صياغة العنوان أو الكلمات الدلالية.")
     else:
-        st.error("الرجاء إدخال عنوان البحث الجديد ورفع ملف قالب الـ Word أولاً.")
+        st.error("الرجاء إدخال عنوان البحث الجديد ورفع ملف قالب الـ Word أولاً لتشغيل النظام الجديد.")
