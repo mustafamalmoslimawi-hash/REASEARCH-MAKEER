@@ -3,8 +3,10 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
+from google import genai
+from google.genai import types
 
-# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA V4
+# إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
 
 st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER ULTRA</h1>", unsafe_allow_html=True)
@@ -27,7 +29,7 @@ def extract_structure_from_docx(file_buffer):
                     structure_lines.append(f"[الهيكل والترتيب الرئيسي] {text}")
                 else:
                     structure_lines.append(text)
-        return "\n".join(structure_lines) # قراءة كاملة وشاملة للقالب لمحاكاته بدقة
+        return "\n".join(structure_lines)
     except Exception as e:
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
@@ -80,34 +82,32 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Generate the full-length comprehensive scientific output now."
     )
     
-    # استخدام مفتاحك الخاص لـ Gemini عبر الـ API المستقر الصافي لتوليد نصوص ضخمة ومطولة دون مشاكل
+    # الاعتماد على مكتبة google-genai الرسمية لحل مشاكل الاتصال والتوليد المطول
     if GEMINI_KEY:
-        # استخدام النسخة المستقرة gemini-1.5-pro للحصول على أعلى جودة وأكبر عدد صفحات ممكن
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_KEY}"
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "generationConfig": {
-                "maxOutputTokens": 8192, # رفع الحد الأقصى للمخرجات لإنتاج بحث طويل جداً يتجاوز 10 صفحات
-                "temperature": 0.6
-            }
-        }
         try:
-            response = requests.post(url, json=payload, headers={"Content-Type": "application/json"}, timeout=180)
-            res_json = response.json()
-            if 'candidates' in res_json and len(res_json['candidates']) > 0:
-                return res_json['candidates'][0]['content']['parts'][0]['text']
-        except:
+            client = genai.Client(api_key=GEMINI_KEY)
+            response = client.models.generate_content(
+                model='gemini-2.5-pro',
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    max_output_tokens=8192,  # يتيح توليد نصوص ضخمة جداً لتغطية كامل القالب وزيادة الصفحات
+                    temperature=0.5
+                )
+            )
+            if response.text:
+                return response.text
+        except Exception as e:
             pass
 
-    # نظام تبديل احتياطي تلقائي (Fallback) فائق لضمان استمرار العمل في حال تعثر خادم جوجل الرئيسي
+    # نظام تبديل احتياطي تلقائي (Fallback) عبر ميرور مجاني في حال حدوث أي طارئ
     try:
         openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
         payload_or = {
             "model": "meta-llama/llama-3.3-70b-instruct:free",
             "messages": [{"role": "user", "content": prompt}]
         }
-        response = requests.post(openrouter_url, json=payload_or, headers={"Content-Type": "application/json"}, timeout=120)
-        res_json = response.json()
+        res = requests.post(openrouter_url, json=payload_or, headers={"Content-Type": "application/json"}, timeout=120)
+        res_json = res.json()
         if 'choices' in res_json and len(res_json['choices']) > 0:
             return res_json['choices'][0]['message']['content']
     except:
