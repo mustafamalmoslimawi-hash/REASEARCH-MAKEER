@@ -11,7 +11,7 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب المفاتيح بأمان كامل من خزنة Streamlit (Secrets)
+# جلب المفاتيح بأمان من خزنة Streamlit (Secrets)
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
@@ -64,7 +64,7 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
     except: return []
 
-# ==================== تعديل دالة الاتصال لتتوافق مع مفاتيح الـ Vertex والروابط العامة الموحدة ====================
+# ==================== الدالة المعدلة لدعم مفاتيح Vertex AI (التي تبدأ بـ AQ) ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     if not GEMINI_KEY:
         return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
@@ -81,13 +81,16 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Provide a long, well-structured scientific output."
     )
     
+    # إعداد الـ Headers لتتوافق مع معايير مفاتيح الخدمة والمصادقة المباشرة لروابط التطور والإنتاج السحابي
     headers = {
         'Content-Type': 'application/json',
-        'Authorization': f'Bearer {GEMINI_KEY}' if GEMINI_KEY.startswith('AIza')==False else ''
+        'x-goog-api-key': GEMINI_KEY
     }
     
-    # استخدام الرابط المباشر للمطورين المتوافق مع كافة تصنيفات الحسابات والمفاتيح
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
+    # استخدام المسار الأساسي الموحد والمستقر للإصدار الأول للـ API لضمان التوافق المطلق
+    api_url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+    
+    # إذا تم رصد مفتاح AI Studio تقليدي مستقبلاً، يتم إلحاقه بالرابط تلقائياً كخيار احتياطي ثانٍ
     if GEMINI_KEY.startswith('AIza'):
         api_url += f"?key={GEMINI_KEY}"
         
@@ -101,13 +104,15 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
             return res_json['candidates'][0]['content']['parts'][0]['text']
             
         if 'error' in res_json:
-            # محاولة بديلة هجينة في حال وجود مشكلة في إصدار الرابط
-            fallback_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
+            # محاولة مع إصدار v1beta كخيار بديل في حالة تعثر المسار الأساسي
+            fallback_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
             if GEMINI_KEY.startswith('AIza'): fallback_url += f"?key={GEMINI_KEY}"
+            
             fallback_res = requests.post(fallback_url, json=payload, headers=headers, timeout=120).json()
             if 'candidates' in fallback_res and fallback_res['candidates']:
                 return fallback_res['candidates'][0]['content']['parts'][0]['text']
-            return f"ERROR_API_SERVER: {res_json['error'].get('message', 'Unknown Error')}"
+                
+            return f"ERROR_API_SERVER: {res_json['error'].get('message', 'خطأ في معالجة الهوية السحابية للمفتاح الحالي.')}"
             
         return "ERROR_RESPONSE: استجابة خادم جوجل غير مطابقة للمواصفات البرمجية الحالية."
         
@@ -135,7 +140,7 @@ with col2: citation_style = st.selectbox("📚 نظام توثيق الهوام�
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with st.spinner("📊 جاري قراءة بنية المستند..."):
+        with st.spinner("📊 jاري قراءة بنية المستند..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
         if extracted_template:
             with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
