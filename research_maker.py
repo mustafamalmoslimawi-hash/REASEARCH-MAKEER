@@ -11,7 +11,7 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# جلب مفتاح سبرب آبي إذا كان متاحاً
+# جلب مفتاح سبرب آبي إذا كان متاحاً في السيكرتس
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 
 # ==================== قسم قراءة قالب الـ WORD ====================
@@ -63,7 +63,7 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:3]]
     except: return []
 
-# ==================== قسم التوليد الأكاديمي فائق الاستقرار ====================
+# ==================== قسم التوليد الأكاديمي فائق الاستقرار عبر سيرفرات مجانية وعامة ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     sources_block = ""
     for idx, p in enumerate(combined_papers):
@@ -74,45 +74,31 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"in language: {lang} using {style} citation style.\n\n"
         f"Strictly align your writing with this structural layout extracted from the user template:\n{template_text}\n\n"
         f"Integrate context and data from these academic sources:\n{sources_block}\n\n"
-        f"Provide a long, well-structured scientific output."
+        f"Provide a long, well-structured scientific output with complete sections."
     )
     
-    api_url = "https://api.together.xyz/v1/chat/completions"
+    # استخدام محرك OpenRouter المجاني المستقر لإنتاج النص الأكاديمي دون الحاجة لكروت ائتمان أو مفاتيح خاصة بجوجل
+    openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
     headers = {
-        "Authorization": "Bearer Bearer 599cc7ff347f879ab16dfde0ea9bb930491fa583344d5a1b32d166fc9c3a3c20",
         "Content-Type": "application/json"
     }
-    
     payload = {
-        "model": "meta-llama/Llama-3-8b-chat-hf",
+        "model": "meta-llama/llama-3-8b-instruct:free",
         "messages": [
-            {"role": "system", "content": "You are a professional academic research writer."},
+            {"role": "system", "content": "You are an expert academic research generator specializing in detailed research creation."},
             {"role": "user", "content": prompt}
-        ],
-        "max_tokens": 3000,
-        "temperature": 0.6
+        ]
     }
     
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=180)
+        response = requests.post(openrouter_url, json=payload, headers=headers, timeout=120)
         res_json = response.json()
-        
         if 'choices' in res_json and len(res_json['choices']) > 0:
             return res_json['choices'][0]['message']['content']
-            
-        fallback_url = "https://openrouter.ai/api/v1/chat/completions"
-        fallback_headers = {"Content-Type": "application/json"}
-        fallback_payload = {
-            "model": "meta-llama/llama-3-8b-instruct:free",
-            "messages": [{"role": "user", "content": prompt}]
-        }
-        f_res = requests.post(fallback_url, json=fallback_payload, headers=fallback_headers, timeout=120).json()
-        if 'choices' in f_res:
-            return f_res['choices'][0]['message']['content']
-            
-        return "ERROR_SYSTEM: السيرفر مشغول حالياً بإنشاء أبحاث أخرى، يرجى الضغط على زر التشغيل مرة أخرى."
+        else:
+            return "ERROR_SYSTEM: الخادم مشغول حالياً بإصدار أبحاث أخرى، يرجى الضغط على زر التشغيل مرة أخرى للبدء."
     except Exception as e:
-        return f"ERROR_SYSTEM: جاري تحديث تسليم البيانات، يرجى إعادة المحاولة الآن: {e}"
+        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بمحرك الصياغة، يرجى إعادة المحاولة: {e}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -125,7 +111,7 @@ def create_formatted_docx(text, title):
     bio.seek(0)
     return bio
 
-# ==================== واجهة المستخدم الرسومية ====================
+# ==================== واجهة المستخدم الرسومية المستقرة ====================
 research_title = st.text_input("📝 أولاً: اكتب عنوان البحث العلمي الجديد المُراد صناعته:")
 uploaded_file = st.file_uploader("📐 ثانياً: ارفع ملف الـ Word القياسي تلقائياً:", type=["docx"])
 
@@ -135,11 +121,12 @@ with col2: citation_style = st.selectbox("📚 نظام توثيق الهوام�
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        # هنا تم تعديل الحرف إلى st.spinner الصغير لتلافي الخطأ تماماً
+        # تصحيح الـ Spinner ليعمل بحروف صغيرة st بدلاً من الكبيرة St
         with st.spinner("📊 جاري قراءة بنية المستند..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
+            
         if extracted_template:
-            with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
+            with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة والمراجع..."):
                 all_combined_papers = fetch_google_scholar(research_title) + fetch_semantic_scholar(research_title) + fetch_arxiv(research_title)
             
             if not all_combined_papers:
@@ -147,7 +134,7 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             
             st.success(f"🔥 تم تأمين {len(all_combined_papers)} مرجعاً علمياً متقاطعة لبناء بحثك!")
             
-            with st.spinner("🧠 يقوم المحرك الأكاديمي بصياغة البحث كاملاً الآن..."):
+            with st.spinner("🧠 يقوم المحرك الأكاديمي بصياغة البحث كاملاً الآن طبقاً للمراجع والقالب..."):
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
             
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
@@ -155,8 +142,8 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
             if "ERROR_" in generated_research:
                 st.error(generated_research)
             else:
-                st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
+                st.text_area("المستند الأكاديمي الكامل المولد", generated_research, height=450)
                 st.balloons()
                 st.download_button(label="📥 تحميل مستند البحث العلمي الكامل (.docx)", data=create_formatted_docx(generated_research, research_title), file_name=f"{research_title.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     else:
-        st.error("الرجاء إدخال عنوان البحث ورفع الملف أولاً.")
+        st.error("الرجاء إدخال عنوان البحث ورفع ملف القالب أولاً لتفعيله.")
