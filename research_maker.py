@@ -11,7 +11,7 @@ st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER
 st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: جلب متعدد المصادر + محاكاة قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
-# لضمان عدم حظرها Streamlit (Secrets) جلب المفاتيح بأمان كامل من خزنة
+# جلب المفاتيح بأمان كامل من خزنة Streamlit (Secrets) لضمان عدم حظرها
 SERPAPI_KEY = st.secrets.get("SERPAPI_KEY", "").strip()
 GEMINI_KEY = st.secrets.get("GEMINI_KEY", "").strip()
 
@@ -20,11 +20,16 @@ def extract_structure_from_docx(file_buffer):
     """قراءة مستند الـ Word المرفوع واستخراج الهيكل والترتيب منه تلقائياً"""
     try:
         doc = docx.Document(file_buffer)
-        full_text = []
+        structure_lines = []
         for para in doc.paragraphs:
-            if para.text.strip():
-                full_text.append(para.text.strip())
-        return "\n".join(full_text)
+            text = para.text.strip()
+            if text:
+                # التحقق مما إذا كان النص يمثل عنواناً رئيسياً في القالب المرفوع
+                if para.style.name.startswith('Heading') or text.isupper() or any(k in text.lower() for k in ['chapter', 'section', 'المبحث', 'الفصل']):
+                    structure_lines.append(f"[Heading] {text}")
+                else:
+                    structure_lines.append(text)
+        return "\n".join(structure_lines)
     except Exception as e:
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
@@ -143,12 +148,12 @@ def create_formatted_docx(text, title):
     for line in lines:
         clean_line = line.replace("**", "").replace("###", "").replace("##", "").replace("#", "").strip()
         if not clean_line: continue
-        if any(keyword in line for keyword in ["CHAPTER", "Introduction", "Review", "Discussion", "Conclusion", "References"]):
+        if any(keyword in line for keyword in ["CHAPTER", "Introduction", "Review", "Discussion", "Conclusion", "References", "المبحث", "الفصل"]):
             doc.add_heading(clean_line, level=1)
         else:
             doc.add_paragraph(clean_line)
     bio = BytesIO()
-    doc.save(doc.save(bio))
+    doc.save(bio)  # تم إصلاح الخطأ التكراري القديم هنا بنجاح!
     bio.seek(0)
     return bio
 
@@ -186,7 +191,6 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                         st.write("---")
                         
                 with st.spinner("🧠 يقوم نظام Gemini 1.5 Pro الآن بمطابقة هيكلية ملف الورد المرفوع وصياغة الفصول كاملة..."):
-                    # هنا استدعاء الدالة الجديدة الصحيحة لمنع خطأ الـ NameError
                     generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
                     
                 st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
