@@ -3,14 +3,12 @@ import requests
 import docx
 from io import BytesIO
 import xml.etree.ElementTree as ET
-from google import genai
-from google.genai import types
 
 # إعدادات واجهة المستخدم الرسومية لـ RESEARCH-MAKER ULTRA
 st.set_page_config(page_title="RESEARCH-MAKER ULTRA", layout="wide")
 
 st.markdown("<h1 style='text-align: center; color: #008080;'>🔬 RESEARCH-MAKER ULTRA</h1>", unsafe_allow_html=True)
-st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: توليد مطول وعميق يحاكي كامل قالب الـ Word</h4>", unsafe_allow_html=True)
+st.markdown("<h4 style='text-align: center; color: #555;'>المحرك الأكاديمي الشامل: توليد مطول وعميق يحاكي كامل قالب الـ Word المرفوع</h4>", unsafe_allow_html=True)
 st.write("---")
 
 # جلب مفاتيح الربط من السيكرتس بشكل آمن
@@ -29,7 +27,7 @@ def extract_structure_from_docx(file_buffer):
                     structure_lines.append(f"[الهيكل والترتيب الرئيسي] {text}")
                 else:
                     structure_lines.append(text)
-        return "\n".join(structure_lines)
+        return "\n".join(structure_lines) # قراءة شاملة وكاملة للقالب لمحاكاته بدقة
     except Exception as e:
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
@@ -66,7 +64,7 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:4]]
     except: return []
 
-# ==================== محرك الإنتاج العملاق والمطول المستقر ====================
+# ==================== محرك الإنتاج العملاق والمطول المستقر المباشر ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     sources_block = ""
     for idx, p in enumerate(combined_papers):
@@ -82,24 +80,30 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Generate the full-length comprehensive scientific output now."
     )
     
-    # الاعتماد على مكتبة google-genai الرسمية لحل مشاكل الاتصال والتوليد المطول
+    # استخدام الرابط المباشر لـ Gemini والموديل الاحترافي 1.5 Pro لمعالجة الأبحاث الطويلة جداً وضمان الاستقرار الكامل
     if GEMINI_KEY:
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-pro:generateContent?key={GEMINI_KEY}"
+        headers = {"Content-Type": "application/json"}
+        payload = {
+            "contents": [{
+                "parts": [{
+                    "text": prompt
+                }]
+            }],
+            "generationConfig": {
+                "maxOutputTokens": 8192, # الحد الأقصى للتوليد المطول لإعطاء صفحات كثيرة
+                "temperature": 0.4
+            }
+        }
         try:
-            client = genai.Client(api_key=GEMINI_KEY)
-            response = client.models.generate_content(
-                model='gemini-2.5-pro',
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    max_output_tokens=8192,  # يتيح توليد نصوص ضخمة جداً لتغطية كامل القالب وزيادة الصفحات
-                    temperature=0.5
-                )
-            )
-            if response.text:
-                return response.text
+            response = requests.post(url, json=payload, headers=headers, timeout=180)
+            res_json = response.json()
+            if 'candidates' in res_json and len(res_json['candidates']) > 0:
+                return res_json['candidates'][0]['content']['parts'][0]['text']
         except Exception as e:
             pass
 
-    # نظام تبديل احتياطي تلقائي (Fallback) عبر ميرور مجاني في حال حدوث أي طارئ
+    # خط دفاع احتياطي تلقائي (Fallback) عبر السيرفرات البديلة المفتوحة في حال حدوث ضغط مفاجئ
     try:
         openrouter_url = "https://openrouter.ai/api/v1/chat/completions"
         payload_or = {
@@ -113,7 +117,7 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     except:
         pass
         
-    return "ERROR_SYSTEM: الخادم مستغرق في معالجة البيانات الضخمة حالياً، يرجى إعادة الضغط على زر التشغيل فوراً لاستلام البحث المحدث."
+    return "ERROR_SYSTEM: الخادم مستغرق في التوليد، يرجى إعادة الضغط على زر التشغيل فوراً لاستلام بحثك كاملاً."
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
