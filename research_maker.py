@@ -77,14 +77,12 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Provide a long, well-structured scientific output."
     )
     
-    # الانتقال إلى السيرفر الاحتياطي فائق السرعة والمستقر للأبحاث الطويلة
     api_url = "https://api.together.xyz/v1/chat/completions"
     headers = {
         "Authorization": "Bearer Bearer 599cc7ff347f879ab16dfde0ea9bb930491fa583344d5a1b32d166fc9c3a3c20",
         "Content-Type": "application/json"
     }
     
-    # استخدام الموديل المستقر المحدث المتخصص في معالجة النصوص الطويلة جداً دون سقوط
     payload = {
         "model": "meta-llama/Llama-3-8b-chat-hf",
         "messages": [
@@ -96,14 +94,12 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     }
     
     try:
-        # رفع وقت الانتظار إلى 180 ثانية لضمان إتمام توليد المستند كاملاً
         response = requests.post(api_url, json=payload, headers=headers, timeout=180)
         res_json = response.json()
         
         if 'choices' in res_json and len(res_json['choices']) > 0:
             return res_json['choices'][0]['message']['content']
             
-        # محاولة أخيرة عبر سرفر بديل ومباشر في حالة تعثر الاستجابة الأولى
         fallback_url = "https://openrouter.ai/api/v1/chat/completions"
         fallback_headers = {"Content-Type": "application/json"}
         fallback_payload = {
@@ -139,7 +135,8 @@ with col2: citation_style = st.selectbox("📚 نظام توثيق الهوام�
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with St.spinner("📊 جاري قراءة بنية المستند..."):
+        # هنا تم تعديل الحرف إلى st.spinner الصغير لتلافي الخطأ تماماً
+        with st.spinner("📊 جاري قراءة بنية المستند..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
         if extracted_template:
             with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
