@@ -64,7 +64,7 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
     except: return []
 
-# ==================== الدالة المعدلة لدعم مفاتيح Vertex AI (التي تبدأ بـ AQ) ====================
+# ==================== دالة معالجة الأخطاء السحابية الذكية وتجربة المسميات المتوافقة ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     if not GEMINI_KEY:
         return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
@@ -81,43 +81,49 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Provide a long, well-structured scientific output."
     )
     
-    # إعداد الـ Headers لتتوافق مع معايير مفاتيح الخدمة والمصادقة المباشرة لروابط التطور والإنتاج السحابي
     headers = {
         'Content-Type': 'application/json',
         'x-goog-api-key': GEMINI_KEY
     }
     
-    # استخدام المسار الأساسي الموحد والمستقر للإصدار الأول للـ API لضمان التوافق المطلق
-    api_url = "https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash:generateContent"
-    
-    # إذا تم رصد مفتاح AI Studio تقليدي مستقبلاً، يتم إلحاقه بالرابط تلقائياً كخيار احتياطي ثانٍ
-    if GEMINI_KEY.startswith('AIza'):
-        api_url += f"?key={GEMINI_KEY}"
-        
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
-    try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=120)
-        res_json = response.json()
-        
-        if 'candidates' in res_json and res_json['candidates']:
-            return res_json['candidates'][0]['content']['parts'][0]['text']
-            
-        if 'error' in res_json:
-            # محاولة مع إصدار v1beta كخيار بديل في حالة تعثر المسار الأساسي
-            fallback_url = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent"
-            if GEMINI_KEY.startswith('AIza'): fallback_url += f"?key={GEMINI_KEY}"
-            
-            fallback_res = requests.post(fallback_url, json=payload, headers=headers, timeout=120).json()
-            if 'candidates' in fallback_res and fallback_res['candidates']:
-                return fallback_res['candidates'][0]['content']['parts'][0]['text']
+    # قائمة بجميع المسميات والمسارات البرمجية الممكنة للموديلات المتوافقة مع المفاتيح المؤسسية (AQ)
+    attempts = [
+        # 1. تجربة الإصدار السحابي المستقر مع Flash المحدث برقم الإصدار
+        ("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-001:generateContent", {}),
+        # 2. تجربة مسار الـ v1beta لـ Flash المحدث
+        ("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash-001:generateContent", {}),
+        # 3. تجربة استدعاء الموديل ذو السعة الأكبر Pro المحدث المتوافق مع حسابات السحاب
+        ("https://generativelanguage.googleapis.com/v1/models/gemini-1.5-pro-001:generateContent", {}),
+        # 4. مسار v1beta المباشر مع معلمة الرابط التقليدي كخيار أخير في حال تغير تصنيف الـ Token
+        ("https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent", {"key": GEMINI_KEY})
+    ]
+    
+    last_error = ""
+    for url, extra_params in attempts:
+        try:
+            # دمج بارامترات الرابط إن وجدت
+            current_url = url
+            if extra_params:
+                current_url += f"?key={extra_params['key']}"
                 
-            return f"ERROR_API_SERVER: {res_json['error'].get('message', 'خطأ في معالجة الهوية السحابية للمفتاح الحالي.')}"
+            response = requests.post(current_url, json=payload, headers=headers, timeout=120)
+            res_json = response.json()
             
-        return "ERROR_RESPONSE: استجابة خادم جوجل غير مطابقة للمواصفات البرمجية الحالية."
-        
-    except Exception as e:
-        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة الخارجية: {e}"
+            if 'candidates' in res_json and res_json['candidates']:
+                return res_json['candidates'][0]['content']['parts'][0]['text']
+                
+            if 'error' in res_json:
+                last_error = res_json['error'].get('message', 'Unknown API Error')
+                # الاستمرار في الحلقة وتجربة المسار البديل التالي تلقائياً
+                continue
+                
+        except Exception as e:
+            last_error = str(e)
+            continue
+            
+    return f"ERROR_API_SERVER: تعذر مطابقة اسم النموذج السحابي مع نوع حسابك الحالي. تفاصيل الاستجابة الأخيرة: {last_error}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -140,7 +146,7 @@ with col2: citation_style = st.selectbox("📚 نظام توثيق الهوام�
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with st.spinner("📊 jاري قراءة بنية المستند..."):
+        with st.spinner("📊 جاري قراءة بنية المستند..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
         if extracted_template:
             with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
