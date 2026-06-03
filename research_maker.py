@@ -64,28 +64,47 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
     except: return []
 
-# ==================== الاتصال المباشر عبر بروتوكول HTTP الآمن لتفادي الـ 404 ====================
+# ==================== الاتصال المطور وتجنب خطأ Candidates المفقودة ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     if not GEMINI_KEY:
         return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
         
     sources_block = ""
     for idx, p in enumerate(combined_papers):
-        sources_block += f"\n[Source {idx+1}]\nTitle: {p['title']}\nAbstract: {p['snippet']}\n"
+        sources_block += f"\n- Title: {p['title']}\n  Abstract: {p['snippet']}\n"
         
-    prompt = f"You are an elite professor. Write a deep academic research paper about '{title}' in language: {lang} using {style} style. Follow this layout structure:\n{template_text}\n\nUse these references to build content:\n{sources_block}"
+    # بناء توجيه أكاديمي متين ومبسط لتفادي مشاكل الفلترة الأمنية الافتراضية للخادم
+    prompt = (
+        f"You are an elite academic professor. Write a comprehensive, deep academic research paper about '{title}' "
+        f"in language: {lang} using {style} citation style.\n\n"
+        f"Strictly align your writing with this structural layout extracted from the user template:\n{template_text}\n\n"
+        f"Integrate context and data from these academic sources:\n{sources_block}\n\n"
+        f"Provide a long, well-structured scientific output."
+    )
     
-    # استخدام الرابط الخام المباشر للنموذج المستقر لتجنب مشاكل توافق المكتبات
+    # استخدام الإصدار المستقر والمعتمد للاتصال بالـ API المباشر
     api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
     headers = {'Content-Type': 'application/json'}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=60)
+        response = requests.post(api_url, json=payload, headers=headers, timeout=90)
         res_json = response.json()
-        return res_json['candidates'][0]['content']['parts'][0]['text']
+        
+        # الفحص الذكي للاستجابة لحل مشكلة التوقف المفاجئ
+        if 'candidates' in res_json and res_json['candidates']:
+            candidate = res_json['candidates'][0]
+            if 'content' in candidate and 'parts' in candidate['content']:
+                return candidate['content']['parts'][0]['text']
+        
+        # خطة بديلة (Fallback) في حال وجود حظر أو استجابة غير اعتيادية من الخادم
+        if 'error' in res_json:
+            return f"ERROR_API_SERVER: {res_json['error'].get('message', 'Unknown Error')}"
+            
+        return "ERROR_RESPONSE: استجاب السيرفر بنجاح ولكن تعذر استخلاص النص المولد. يرجى مراجعة محتوى المستند المرفوع أو تهيئة المفتاح."
+        
     except Exception as e:
-        return f"ERROR_API: تأكد من صيانة المفتاح السري، تفاصيل الخطأ: {e}"
+        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة: {e}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -122,9 +141,11 @@ if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"
                 generated_research = generate_advanced_templated_research(research_title, all_combined_papers, extracted_template, language, citation_style)
             
             st.subheader("📄 معاينة البحث الهيكلي الجديد المولد:")
-            st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
             
-            if "ERROR_" not in generated_research:
+            if "ERROR_" in generated_research:
+                st.error(generated_research)
+            else:
+                st.text_area("المستند الأكاديمي الكامل", generated_research, height=450)
                 st.balloons()
                 st.download_button(label="📥 تحميل مستند البحث العلمي الكامل (.docx)", data=create_formatted_docx(generated_research, research_title), file_name=f"{research_title.replace(' ', '_')}.docx", mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document")
     else:
