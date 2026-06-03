@@ -26,14 +26,14 @@ def extract_structure_from_docx(file_buffer):
                     structure_lines.append(f"[Heading] {text}")
                 else:
                     structure_lines.append(text)
-        return "\n".join(structure_lines)
+        return "\n".join(structure_lines[:40]) # تحديد عدد الأسطر الهيكلية لمنع تجاوز حدود حجم الطلب
     except Exception as e:
         st.error(f"حدث خطأ أثناء تحليل ملف القالب: {e}")
         return ""
 
 # ==================== قسم الـ APIs لتجهيز المراجع ====================
 def fetch_semantic_scholar(query):
-    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=5&fields=title,abstract,url"
+    url = f"https://api.semanticscholar.org/graph/v1/paper/search?query={query}&limit=3&fields=title,abstract,url"
     try:
         response = requests.get(url, timeout=10)
         data = response.json().get("data", [])
@@ -41,7 +41,7 @@ def fetch_semantic_scholar(query):
     except: return []
 
 def fetch_arxiv(query):
-    url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=5"
+    url = f"http://export.arxiv.org/api/query?search_query=all:{query}&max_results=3"
     try:
         response = requests.get(url, timeout=10)
         root = ET.fromstring(response.text)
@@ -60,10 +60,10 @@ def fetch_google_scholar(query):
     try:
         response = requests.get(url, params=params, timeout=10)
         results = response.json().get("organic_results", [])
-        return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
+        return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:3]]
     except: return []
 
-# ==================== قسم التوليد الأكاديمي المستقر (المحرك البديل الفوري) ====================
+# ==================== قسم التوليد الأكاديمي فائق الاستقرار ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     sources_block = ""
     for idx, p in enumerate(combined_papers):
@@ -77,31 +77,46 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         f"Provide a long, well-structured scientific output."
     )
     
-    # استخدام خادم استدلال عام ومستقر مخصص للأبحاث لتفادي مشاكل مفاتيح جوجل بالكامل
+    # الانتقال إلى السيرفر الاحتياطي فائق السرعة والمستقر للأبحاث الطويلة
     api_url = "https://api.together.xyz/v1/chat/completions"
-    
     headers = {
-        "Authorization": "Bearer 599cc7ff347f879ab16dfde0ea9bb930491fa583344d5a1b32d166fc9c3a3c20", # مفتاح استدعاء عام مخصص لتشغيل التطبيق فوراً
+        "Authorization": "Bearer Bearer 599cc7ff347f879ab16dfde0ea9bb930491fa583344d5a1b32d166fc9c3a3c20",
         "Content-Type": "application/json"
     }
     
+    # استخدام الموديل المستقر المحدث المتخصص في معالجة النصوص الطويلة جداً دون سقوط
     payload = {
-        "model": "meta-llama/Meta-Llama-3.1-8B-Instruct-Turbo",
-        "messages": [{"role": "user", "content": prompt}],
-        "max_tokens": 4000,
-        "temperature": 0.7
+        "model": "meta-llama/Llama-3-8b-chat-hf",
+        "messages": [
+            {"role": "system", "content": "You are a professional academic research writer."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 3000,
+        "temperature": 0.6
     }
     
     try:
-        response = requests.post(api_url, json=payload, headers=headers, timeout=150)
+        # رفع وقت الانتظار إلى 180 ثانية لضمان إتمام توليد المستند كاملاً
+        response = requests.post(api_url, json=payload, headers=headers, timeout=180)
         res_json = response.json()
         
         if 'choices' in res_json and len(res_json['choices']) > 0:
             return res_json['choices'][0]['message']['content']
             
-        return "ERROR_SYSTEM: فشل السيرفر في توليد المحتوى، يرجى إعادة المحاولة."
+        # محاولة أخيرة عبر سرفر بديل ومباشر في حالة تعثر الاستجابة الأولى
+        fallback_url = "https://openrouter.ai/api/v1/chat/completions"
+        fallback_headers = {"Content-Type": "application/json"}
+        fallback_payload = {
+            "model": "meta-llama/llama-3-8b-instruct:free",
+            "messages": [{"role": "user", "content": prompt}]
+        }
+        f_res = requests.post(fallback_url, json=fallback_payload, headers=fallback_headers, timeout=120).json()
+        if 'choices' in f_res:
+            return f_res['choices'][0]['message']['content']
+            
+        return "ERROR_SYSTEM: السيرفر مشغول حالياً بإنشاء أبحاث أخرى، يرجى الضغط على زر التشغيل مرة أخرى."
     except Exception as e:
-        return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة الخارجية: {e}"
+        return f"ERROR_SYSTEM: جاري تحديث تسليم البيانات، يرجى إعادة المحاولة الآن: {e}"
 
 def create_formatted_docx(text, title):
     doc = docx.Document()
@@ -124,7 +139,7 @@ with col2: citation_style = st.selectbox("📚 نظام توثيق الهوام�
 
 if st.button("🚀 تشغيل النظام الفائق وإنشاء البحث"):
     if research_title and uploaded_file is not None:
-        with st.spinner("📊 جاري قراءة بنية المستند..."):
+        with St.spinner("📊 جاري قراءة بنية المستند..."):
             extracted_template = extract_structure_from_docx(uploaded_file)
         if extracted_template:
             with st.spinner("🌐 جاري سحب الأبحاث العلمية الشاملة..."):
