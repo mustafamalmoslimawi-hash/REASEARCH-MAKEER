@@ -64,7 +64,7 @@ def fetch_google_scholar(query):
         return [{"title": item.get("title", "No Title"), "snippet": item.get("snippet", "No abstract available."), "link": item.get("link", "#"), "source": "Google Scholar"} for item in results[:5]]
     except: return []
 
-# ==================== الاتصال المطور وتجنب خطأ Candidates المفقودة ====================
+# ==================== تحديث الرابط إلى المسار المضمون والثابت ====================
 def generate_advanced_templated_research(title, combined_papers, template_text, lang, style):
     if not GEMINI_KEY:
         return "ERROR_KEY: لم يتم العثور على مفتاح GEMINI_KEY في إعدادات الخزنة."
@@ -73,17 +73,16 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
     for idx, p in enumerate(combined_papers):
         sources_block += f"\n- Title: {p['title']}\n  Abstract: {p['snippet']}\n"
         
-    # بناء توجيه أكاديمي متين ومبسط لتفادي مشاكل الفلترة الأمنية الافتراضية للخادم
     prompt = (
         f"You are an elite academic professor. Write a comprehensive, deep academic research paper about '{title}' "
         f"in language: {lang} using {style} citation style.\n\n"
-        f"Strictly align your writing with this structural layout extracted from the user template:\n{template_text}\n\n"
-        f"Integrate context and data from these academic sources:\n{sources_block}\n\n"
+        f"Strictly align your writing with this structural layout:\n{template_text}\n\n"
+        f"Integrate context from these sources:\n{sources_block}\n\n"
         f"Provide a long, well-structured scientific output."
     )
     
-    # استخدام الإصدار المستقر والمعتمد للاتصال بالـ API المباشر
-    api_url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_KEY}"
+    # التعديل الذهبي: الانتقال إلى الإصدار المستقر v1 وتعديل صياغة اسم النموذج المباشر
+    api_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-pro:generateContent?key={GEMINI_KEY}"
     headers = {'Content-Type': 'application/json'}
     payload = {"contents": [{"parts": [{"text": prompt}]}]}
     
@@ -91,17 +90,18 @@ def generate_advanced_templated_research(title, combined_papers, template_text, 
         response = requests.post(api_url, json=payload, headers=headers, timeout=90)
         res_json = response.json()
         
-        # الفحص الذكي للاستجابة لحل مشكلة التوقف المفاجئ
         if 'candidates' in res_json and res_json['candidates']:
-            candidate = res_json['candidates'][0]
-            if 'content' in candidate and 'parts' in candidate['content']:
-                return candidate['content']['parts'][0]['text']
+            return res_json['candidates'][0]['content']['parts'][0]['text']
         
-        # خطة بديلة (Fallback) في حال وجود حظر أو استجابة غير اعتيادية من الخادم
         if 'error' in res_json:
+            # إذا فشل المبرمج في طلب gemini-pro، نجرب تلقائياً المسار البديل والمؤكد
+            fallback_url = f"https://generativelanguage.googleapis.com/v1/models/gemini-1.5-flash-latest:generateContent?key={GEMINI_KEY}"
+            fallback_res = requests.post(fallback_url, json=payload, headers=headers, timeout=90).json()
+            if 'candidates' in fallback_res and fallback_res['candidates']:
+                return fallback_res['candidates'][0]['content']['parts'][0]['text']
             return f"ERROR_API_SERVER: {res_json['error'].get('message', 'Unknown Error')}"
             
-        return "ERROR_RESPONSE: استجاب السيرفر بنجاح ولكن تعذر استخلاص النص المولد. يرجى مراجعة محتوى المستند المرفوع أو تهيئة المفتاح."
+        return "ERROR_RESPONSE: استجابة غير معروفة من خوادم جوجل."
         
     except Exception as e:
         return f"ERROR_SYSTEM: حدث خطأ أثناء الاتصال بالشبكة: {e}"
